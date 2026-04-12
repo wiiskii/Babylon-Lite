@@ -25,14 +25,14 @@ jobs:
         run: npx vitest run
 
       - name: Run dispose tests
-        run: npx playwright test tests/plumbing/dispose.spec.ts
+        run: xvfb-run --auto-servernum npx playwright test tests/plumbing/dispose.spec.ts
         env:
-          HEADLESS: "true"
+          HEADLESS: "false"
 
       - name: Run material-swap tests
-        run: npx playwright test tests/plumbing/material-swap.spec.ts
+        run: xvfb-run --auto-servernum npx playwright test tests/plumbing/material-swap.spec.ts
         env:
-          HEADLESS: "true"
+          HEADLESS: "false"
 
       - name: Upload test artifacts
         if: failure()
