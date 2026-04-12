@@ -1,0 +1,245 @@
+/** Ground plane renderable — lazy-loaded only when a scene includes a ground.
+ *  Contains the ground material, mesh buffers, texture loading, and UBO creation.
+ *  Tree-shaken away from scenes that use `skipGround: true`. */
+
+import type { Mat4 } from "../../math/types.js";
+import type { Renderable } from "../../render/renderable.js";
+import { getOrCreateSampler } from "../../resource/gpu-pool.js";
+import groundVertSrc from "../../../shaders/background.vertex.wgsl?raw";
+import groundFragSrc from "../../../shaders/background.ground.fragment.wgsl?raw";
+import { createBuf } from "./background-material.js";
+import { WGSL_SCENE_UNIFORMS_PBR, WGSL_SCENE_UNIFORMS_PBR_SH, WGSL_IMAGE_PROCESSING, WGSL_DITHER } from "../../shader/wgsl-helpers.js";
+
+const BG_MESH_UNIFORM_SIZE = 96; // mat4x4 + primaryColor vec3 + alpha + backgroundCenter vec3 + pad
+
+/** Build the ground renderable for a PBR environment scene. */
+export async function buildGroundRenderable(
+    device: GPUDevice,
+    sceneBindGroupLayout: GPUBindGroupLayout,
+    format: GPUTextureFormat,
+    msaaSamples: number,
+    sceneBindGroup: GPUBindGroup,
+    groundSize: number,
+    rootPosition: [number, number, number],
+    primaryColor: [number, number, number],
+    groundTextureUrl?: string,
+    groundImagePromise?: Promise<ImageBitmap>
+): Promise<Renderable> {
+    const gndMat = createGroundMaterial(sceneBindGroupLayout);
+
+    // Ground world: rotated 90° X (XY→XZ), translated to rootPosition
+    // Column-major for WGSL: ground quad in XY plane, normal +Z → world +Y
+    // Offset Y by -0.01 to prevent z-fighting with scene floor geometry.
+    const eps = 2.220446049250313e-16;
+    const groundWorld = new Float32Array(16) as Mat4;
+    groundWorld[0] = 1;
+    groundWorld[5] = eps;
+    groundWorld[6] = -1;
+    groundWorld[9] = 1;
+    groundWorld[10] = eps;
+    groundWorld[12] = rootPosition[0];
+    groundWorld[13] = rootPosition[1];
+    groundWorld[14] = rootPosition[2];
+    groundWorld[15] = 1;
+
+    const gndBufs = createGroundBuffers(device, groundSize);
+    const gndUBO = createBgMeshUBO(device, groundWorld, primaryColor);
+    const gndPipeline = gndMat.getPipeline(device, format, msaaSamples);
+
+    const groundTex = await loadGroundTexture(device, groundTextureUrl, groundImagePromise);
+    const groundTexView = groundTex.createView();
+    const groundSamp = getOrCreateSampler(device, { magFilter: "linear", minFilter: "linear" });
+    const gndBG = gndMat.createBindGroup(device, gndUBO, groundTexView, groundSamp);
+
+    return {
+        order: 200, // ground renders last (transparent)
+        isTransparent: true,
+        draw(pass) {
+            pass.setBindGroup(0, sceneBindGroup);
+            pass.setPipeline(gndPipeline);
+            pass.setBindGroup(1, gndBG);
+            pass.setVertexBuffer(0, gndBufs.posBuffer);
+            pass.setVertexBuffer(1, gndBufs.normBuffer);
+            pass.setVertexBuffer(2, gndBufs.uvBuffer);
+            pass.setIndexBuffer(gndBufs.idxBuffer, "uint16");
+            pass.drawIndexed(gndBufs.idxCount);
+            return 1;
+        },
+    };
+}
+
+// ─── Ground Material ────────────────────────────────────────────────────────
+
+interface GroundMaterial {
+    getPipeline(device: GPUDevice, format: GPUTextureFormat, msaaSamples: number): GPURenderPipeline;
+    createBindGroup(device: GPUDevice, meshUBO: GPUBuffer, groundTextureView: GPUTextureView, groundSampler: GPUSampler): GPUBindGroup;
+}
+
+function createGroundMaterial(sceneBindGroupLayout: GPUBindGroupLayout): GroundMaterial {
+    let pipeline: GPURenderPipeline | null = null;
+    let layout: GPUBindGroupLayout | null = null;
+
+    function getLayout(device: GPUDevice): GPUBindGroupLayout {
+        if (layout) {
+            return layout;
+        }
+        layout = device.createBindGroupLayout({
+            label: "ground-material",
+            entries: [
+                { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
+                { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: "float", viewDimension: "2d" } },
+                { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
+            ],
+        });
+        return layout;
+    }
+
+    return {
+        getPipeline(device, format, msaaSamples) {
+            if (pipeline) {
+                return pipeline;
+            }
+            const vertModule = device.createShaderModule({ code: WGSL_SCENE_UNIFORMS_PBR + groundVertSrc, label: "ground-vert" });
+            const fragModule = device.createShaderModule({ code: WGSL_SCENE_UNIFORMS_PBR_SH + WGSL_IMAGE_PROCESSING + WGSL_DITHER + groundFragSrc, label: "ground-frag" });
+
+            // Matches BJS rp_8: premultiplied alpha blend, depthWrite=false
+            pipeline = device.createRenderPipeline({
+                label: "ground-pipeline",
+                layout: device.createPipelineLayout({ bindGroupLayouts: [sceneBindGroupLayout, getLayout(device)] }),
+                vertex: {
+                    module: vertModule,
+                    entryPoint: "main",
+                    buffers: [
+                        { arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: "float32x3" as GPUVertexFormat }] },
+                        { arrayStride: 12, attributes: [{ shaderLocation: 1, offset: 0, format: "float32x3" as GPUVertexFormat }] },
+                        { arrayStride: 8, attributes: [{ shaderLocation: 2, offset: 0, format: "float32x2" as GPUVertexFormat }] },
+                    ],
+                },
+                fragment: {
+                    module: fragModule,
+                    entryPoint: "main",
+                    targets: [
+                        {
+                            format,
+                            blend: {
+                                color: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" },
+                                alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" },
+                            },
+                        },
+                    ],
+                },
+                depthStencil: {
+                    format: "depth24plus-stencil8",
+                    depthCompare: "less-equal",
+                    depthWriteEnabled: false,
+                },
+                multisample: { count: msaaSamples },
+                primitive: { topology: "triangle-list", cullMode: "back", frontFace: "ccw" },
+            });
+            return pipeline;
+        },
+
+        createBindGroup(device, meshUBO, groundTextureView, groundSampler) {
+            return device.createBindGroup({
+                layout: getLayout(device),
+                entries: [
+                    { binding: 0, resource: { buffer: meshUBO } },
+                    { binding: 1, resource: groundTextureView },
+                    { binding: 2, resource: groundSampler },
+                ],
+            });
+        },
+    };
+}
+
+// ─── Ground Mesh Data ───────────────────────────────────────────────────────
+
+/** Ground quad (4 verts, 6 indices — matches BJS CreatePlane with BACKSIDE).
+ *  XY plane, normals +Z (become +Y after world rotation). */
+function createGroundBuffers(
+    device: GPUDevice,
+    groundSize: number
+): {
+    posBuffer: GPUBuffer;
+    normBuffer: GPUBuffer;
+    uvBuffer: GPUBuffer;
+    idxBuffer: GPUBuffer;
+    idxCount: number;
+} {
+    const h = groundSize / 2;
+    // prettier-ignore
+    const positions = new Float32Array([
+    -h, -h, 0,
+     h, -h, 0,
+     h,  h, 0,
+    -h,  h, 0,
+  ]);
+    // prettier-ignore
+    const normals = new Float32Array([
+    0, 0, 1,  0, 0, 1,  0, 0, 1,  0, 0, 1,
+  ]);
+    // prettier-ignore
+    const uvs = new Float32Array([
+    0, 0,  1, 0,  1, 1,  0, 1,
+  ]);
+    // BACKSIDE winding
+    // prettier-ignore
+    const indices = new Uint16Array([0, 2, 1, 0, 3, 2]);
+
+    return {
+        posBuffer: createBuf(device, positions, GPUBufferUsage.VERTEX),
+        normBuffer: createBuf(device, normals, GPUBufferUsage.VERTEX),
+        uvBuffer: createBuf(device, uvs, GPUBufferUsage.VERTEX),
+        idxBuffer: createBuf(device, indices, GPUBufferUsage.INDEX),
+        idxCount: 6,
+    };
+}
+
+// ─── Ground UBO ─────────────────────────────────────────────────────────────
+
+function createBgMeshUBO(device: GPUDevice, world: Mat4, primaryColor: [number, number, number]): GPUBuffer {
+    const data = new Float32Array(BG_MESH_UNIFORM_SIZE / 4);
+    data.set(world, 0); // offset 0: world mat4x4
+    data[16] = primaryColor[0]; // offset 64: primaryColor.r
+    data[17] = primaryColor[1]; // offset 68: primaryColor.g
+    data[18] = primaryColor[2]; // offset 72: primaryColor.b
+    data[19] = 0.9; // offset 76: alpha (BJS default groundOpacity)
+    data[20] = 0;
+    data[21] = 0;
+    data[22] = 0; // offset 80: backgroundCenter
+    const buf = device.createBuffer({
+        size: BG_MESH_UNIFORM_SIZE,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(buf, 0, data);
+    return buf;
+}
+
+// ─── Ground Texture ─────────────────────────────────────────────────────────
+
+/** Load a ground diffuse texture from URL and upload to GPU.
+ *  Falls back to a 1×1 white pixel if no URL provided. */
+async function loadGroundTexture(device: GPUDevice, url?: string, preloadedImage?: Promise<ImageBitmap>): Promise<GPUTexture> {
+    if (!url) {
+        const tex = device.createTexture({
+            size: [1, 1],
+            format: "rgba8unorm",
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+        });
+        device.queue.writeTexture({ texture: tex }, new Uint8Array([255, 255, 255, 255]), { bytesPerRow: 4 }, [1, 1]);
+        return tex;
+    }
+    // Use pre-fetched image if available (started early in loadEnvironment)
+    const bmp = preloadedImage
+        ? await preloadedImage
+        : await fetch(url)
+              .then((r) => r.blob())
+              .then((b) => createImageBitmap(b, { premultiplyAlpha: "none" }));
+    const tex = device.createTexture({
+        size: [bmp.width, bmp.height],
+        format: "rgba8unorm",
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    device.queue.copyExternalImageToTexture({ source: bmp }, { texture: tex }, [bmp.width, bmp.height]);
+    return tex;
+}

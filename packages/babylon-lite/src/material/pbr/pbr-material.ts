@@ -1,0 +1,139 @@
+/** PBR Material — user-facing props + factory.
+ *
+ *  Same role as StandardMaterialProps for the standard pipeline.
+ *  Users can create a PbrMaterialProps manually or let loadGltf() build one. */
+
+import type { Texture2D } from "../../texture/texture-2d.js";
+import type { MeshGroupBuilder } from "../../render/renderable.js";
+import type { SceneContextInternal } from "../../scene/scene.js";
+
+/** Lazy-imports the PBR renderable builder and builds the pipeline.
+ *  Thin instances are handled by the fragment composer automatically. */
+export const pbrGroupBuilder: MeshGroupBuilder & { _loadRebuildSingle?: () => Promise<any> } = async (scene, meshes) => {
+    const envTex = (scene as SceneContextInternal)._envTextures;
+    const { buildPbrRenderables } = await import("./pbr-renderable.js");
+    return buildPbrRenderables(scene, meshes, envTex);
+};
+// Lazy loader for the single-mesh rebuild function — loaded only when a material swap happens
+pbrGroupBuilder._loadRebuildSingle = () => import("./pbr-single-rebuild.js");
+
+export interface PbrMaterialProps {
+    baseColorTexture?: Texture2D;
+    normalTexture?: Texture2D;
+    /** Occlusion-Roughness-Metallic packed: R=occ, G=rough, B=metal. */
+    ormTexture?: Texture2D;
+    emissiveTexture?: Texture2D;
+    /** Emissive color as float uniform (linear RGB). Used when no emissiveTexture.
+     *  If both set, emissiveColor multiplies emissiveTexture. */
+    emissiveColor?: [number, number, number];
+    /** KHR_materials_pbrSpecularGlossiness: RGB=specular, A=glossiness. */
+    specGlossTexture?: Texture2D;
+    /** Whether material is double-sided (disables back-face culling). */
+    doubleSided?: boolean;
+    /** Overall material alpha (0=fully transparent, 1=opaque). Default 1.0. */
+    alpha?: number;
+    /** Enable alpha blending (glTF alphaMode "BLEND"). Enables radianceOverAlpha + specularOverAlpha. */
+    alphaBlend?: boolean;
+    /** Scale factor for environment/IBL contribution. Default 1.0. */
+    environmentIntensity?: number;
+    /** Scale factor for direct light contribution. Default 1.0. */
+    directIntensity?: number;
+    /** Dielectric F0 reflectance (default 0.04, glass ≈ 0.2). */
+    reflectance?: number;
+    /** Strength of ambient occlusion from ORM R channel. Default 1.0; 0.0 ignores R channel. */
+    occlusionStrength?: number;
+    /** Scales dielectric F0 (default 1.0). Maps to BJS metallicF0Factor. */
+    metallicF0Factor?: number;
+    /** Tints dielectric reflectance (linear RGB, default [1,1,1]). Maps to BJS metallicReflectanceColor. */
+    metallicReflectanceColor?: [number, number, number];
+    /** Texture whose RGB tints reflectance and A scales F0. Maps to BJS metallicReflectanceTexture. */
+    metallicReflectanceTexture?: Texture2D;
+    /** Texture whose RGB tints reflectance only. Maps to BJS reflectanceTexture. */
+    reflectanceTexture?: Texture2D;
+    /** When true + both reflectance textures set, metallicReflectanceTexture only contributes A (F0 scalar). */
+    useOnlyMetallicFromMetallicReflectanceTexture?: boolean;
+    /** Enable specular anti-aliasing on IBL alphaG (matches BJS SPECULARAA). Default false.
+     *  Set automatically by the glTF loader for materials loaded from glTF files. */
+    enableSpecularAA?: boolean;
+    /** Clearcoat layer configuration. When set with isEnabled=true, adds a glossy transparent
+     *  top layer (like car paint or lacquer). Tree-shakable — only bundled when used. */
+    clearCoat?: ClearCoatProps;
+    /** Sheen layer configuration. When set with isEnabled=true, adds a soft velvet-like
+     *  sheen layer (like fabric or cloth). Tree-shakable — only bundled when used. */
+    sheen?: SheenProps;
+    /** When true, the albedo texture is in sRGB/gamma space (loaded as rgba8unorm)
+     *  and the shader applies pow(baseColor, 2.2) for sRGB→linear conversion.
+     *  Matches BJS PBRMaterial's Texture.gammaSpace=true behavior.
+     *  When false (default), assumes the texture already provides linear values
+     *  (e.g. rgba8unorm-srgb format or glTF sRGB textures). */
+    gammaAlbedo?: boolean;
+}
+
+/** @internal Extended PbrMaterialProps with internal build group. */
+export interface PbrMaterialPropsInternal extends PbrMaterialProps {
+    readonly _buildGroup: MeshGroupBuilder;
+}
+
+/** Clearcoat layer properties. Maps to BJS PBRMaterial.clearCoat sub-object. */
+export interface ClearCoatProps {
+    /** Whether clearcoat is active. Default false. */
+    isEnabled?: boolean;
+    /** Clearcoat layer intensity (0=off, 1=full). Default 1.0. */
+    intensity?: number;
+    /** Clearcoat layer roughness. Default 0.0 (perfectly smooth). */
+    roughness?: number;
+    /** Index of refraction of the clearcoat layer. Default 1.5. */
+    indexOfRefraction?: number;
+}
+
+/** Sheen layer properties. Maps to BJS PBRMaterial.sheen sub-object. */
+export interface SheenProps {
+    /** Whether sheen is active. Default false. */
+    isEnabled: boolean;
+    /** Sheen color (linear RGB). Default [1, 1, 1]. */
+    color?: [number, number, number];
+    /** Sheen roughness. Default 0.0. */
+    roughness?: number;
+    /** Sheen intensity (0=off, 1=full). Default 1.0. */
+    intensity?: number;
+    /** Optional sheen tint texture (modulates sheen color). Loaded via loadTexture2D(). */
+    texture?: Texture2D;
+}
+
+/** Create a PbrMaterialProps with optional overrides. */
+export function createPbrMaterial(props?: Partial<PbrMaterialProps>): PbrMaterialProps {
+    return {
+        ...props,
+        _buildGroup: pbrGroupBuilder,
+    } as PbrMaterialProps;
+}
+
+/** Collect all non-null textures referenced by a PBR material (for acquire/release). */
+export function collectPbrBoundTextures(mat: PbrMaterialProps): Texture2D[] {
+    const t: Texture2D[] = [];
+    if (mat.baseColorTexture) {
+        t.push(mat.baseColorTexture);
+    }
+    if (mat.normalTexture) {
+        t.push(mat.normalTexture);
+    }
+    if (mat.ormTexture) {
+        t.push(mat.ormTexture);
+    }
+    if (mat.emissiveTexture) {
+        t.push(mat.emissiveTexture);
+    }
+    if (mat.specGlossTexture) {
+        t.push(mat.specGlossTexture);
+    }
+    if (mat.metallicReflectanceTexture) {
+        t.push(mat.metallicReflectanceTexture);
+    }
+    if (mat.reflectanceTexture) {
+        t.push(mat.reflectanceTexture);
+    }
+    if (mat.sheen?.texture) {
+        t.push(mat.sheen.texture);
+    }
+    return t;
+}

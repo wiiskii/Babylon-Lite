@@ -1,0 +1,153 @@
+/** Shared WGSL helper snippets used by both PBR and Standard material systems.
+ *
+ *  These are pure WGSL function strings — no bindings, no UBO declarations.
+ *  Each material system wraps them with its own binding declarations. */
+
+/** Cotangent-frame bump mapping (used by Standard + PBR cotangent mode).
+ *  Requires: `bumpTex` (texture_2d), `bumpSampler` (sampler) in scope. */
+export const WGSL_PERTURB_NORMAL = `
+fn perturbNormal(vNormalW: vec3<f32>, positionW: vec3<f32>, uv: vec2<f32>, bumpScale: f32) -> vec3<f32> {
+let normalSample = textureSample(bumpTex, bumpSampler, uv).rgb * 2.0 - 1.0;
+let N = normalize(vNormalW) * bumpScale;
+let dp1 = dpdx(positionW);
+let dp2 = -dpdy(positionW);
+let duv1 = dpdx(uv);
+let duv2 = -dpdy(uv);
+let dp2perp = cross(dp2, N);
+let dp1perp = cross(N, dp1);
+var tangent = dp2perp * duv1.x + dp1perp * duv2.x;
+var bitangent = dp2perp * duv1.y + dp1perp * duv2.y;
+let det = max(dot(tangent, tangent), dot(bitangent, bitangent));
+let invmax = select(inverseSqrt(det), 0.0, det == 0.0);
+let cotangentFrame = mat3x3<f32>(tangent * invmax, bitangent * invmax, N);
+return normalize(cotangentFrame * normalSample);
+}
+`;
+
+/** ESM shadow helper functions.
+ *  Requires: `shadowTex` (texture_2d), `shadowSampler` (sampler) in scope. */
+export const WGSL_SHADOW_ESM = `
+fn computeFallOff(value: f32, clipSpace: vec2<f32>, frustumEdgeFalloff: f32) -> f32 {
+let mask = smoothstep(1.0 - frustumEdgeFalloff, 1.00000012, clamp(dot(clipSpace, clipSpace), 0.0, 1.0));
+return mix(value, 1.0, mask);
+}
+fn computeShadowWithESM(posFromLight: vec4<f32>, depthMetric: f32, darkness: f32, depthScale: f32, frustumEdgeFalloff: f32) -> f32 {
+let clipSpace = posFromLight.xyz / posFromLight.w;
+let uv = vec2<f32>(0.5 * clipSpace.x + 0.5, 0.5 - 0.5 * clipSpace.y);
+if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return 1.0; }
+let shadowPixelDepth = clamp(depthMetric, 0.0, 1.0);
+let shadowMapSample = textureSampleLevel(shadowTex, shadowSampler, uv, 0.0).x;
+let esm = 1.0 - clamp(exp(min(87.0, depthScale * shadowPixelDepth)) * shadowMapSample, 0.0, 1.0 - darkness);
+return computeFallOff(esm, clipSpace.xy, frustumEdgeFalloff);
+}
+`;
+
+/** Fog calculation helper.
+ *  Requires: `scene.vFogInfos` (vec4) in scope. */
+export const WGSL_FOG = `
+const E_FOG: f32 = 2.71828;
+fn calcFogFactor(fogDistance: vec3<f32>) -> f32 {
+var fogCoeff: f32 = 1.0;
+let fogMode = scene.vFogInfos.x;
+let fogStart = scene.vFogInfos.y;
+let fogEnd = scene.vFogInfos.z;
+let fogDensity = scene.vFogInfos.w;
+let dist = length(fogDistance);
+if (fogMode == 3.0) { fogCoeff = (fogEnd - dist) / (fogEnd - fogStart); }
+else if (fogMode == 1.0) { fogCoeff = 1.0 / pow(E_FOG, dist * fogDensity); }
+else if (fogMode == 2.0) { fogCoeff = 1.0 / pow(E_FOG, dist * dist * fogDensity * fogDensity); }
+return clamp(fogCoeff, 0.0, 1.0);
+}
+`;
+
+/** Image processing: exposure → Reinhard tonemap → gamma → contrast.
+ *  Requires: `scene.exposureLinear` and `scene.contrast` in scope. */
+export const WGSL_IMAGE_PROCESSING = `
+fn applyImageProcessing(result: vec4<f32>) -> vec4<f32> {
+var rgb = result.rgb;
+rgb *= scene.exposureLinear;
+const tonemappingCalibration: f32 = 1.590579;
+rgb = 1.0 - exp2(-tonemappingCalibration * rgb);
+rgb = pow(rgb, vec3<f32>(1.0 / 2.2));
+rgb = clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0));
+let highContrast = rgb * rgb * (3.0 - 2.0 * rgb);
+if (scene.contrast < 1.0) {
+rgb = mix(vec3<f32>(0.5), rgb, scene.contrast);
+} else {
+rgb = mix(rgb, highContrast, scene.contrast - 1.0);
+}
+rgb = max(rgb, vec3<f32>(0.0));
+return vec4<f32>(rgb, result.a);
+}
+`;
+
+/** Dither noise function.
+ *  Pure math — no UBO dependency. */
+export const WGSL_DITHER = `
+fn dither(seed: vec2<f32>, varianceAmount: f32) -> f32 {
+let rand = fract(sin(dot(seed, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+let normVariance = varianceAmount / 255.0;
+return mix(-normVariance, normVariance, rand);
+}
+`;
+
+/** PBR background SceneUniforms (128 bytes) + binding.
+ *  Used by skybox, DDS skybox, and ground vertex shaders. */
+export const WGSL_SCENE_UNIFORMS_PBR = `
+struct SceneUniforms {
+viewProj: mat4x4<f32>,
+cameraPosition: vec3<f32>, _pad0: f32,
+lightDirection: vec3<f32>, lightIntensity: f32,
+lightDiffuseColor: vec3<f32>, _pad1: f32,
+lightGroundColor: vec3<f32>, _pad2: f32,
+};
+@group(0) @binding(0) var<uniform> scene: SceneUniforms;
+`;
+
+/** PBR SceneUniforms with spherical harmonics + image processing fields.
+ *  Superset of WGSL_SCENE_UNIFORMS_PBR. */
+export const WGSL_SCENE_UNIFORMS_PBR_SH = `
+struct SceneUniforms {
+viewProj: mat4x4<f32>,
+cameraPosition: vec3<f32>, _pad0: f32,
+lightDirection: vec3<f32>, lightIntensity: f32,
+lightDiffuseColor: vec3<f32>, _pad1: f32,
+lightGroundColor: vec3<f32>, _pad2: f32,
+vSphericalL00: vec3<f32>, _sh0: f32,
+vSphericalL1_1: vec3<f32>, _sh1: f32,
+vSphericalL10: vec3<f32>, _sh2: f32,
+vSphericalL11: vec3<f32>, _sh3: f32,
+vSphericalL2_2: vec3<f32>, _sh4: f32,
+vSphericalL2_1: vec3<f32>, _sh5: f32,
+vSphericalL20: vec3<f32>, _sh6: f32,
+vSphericalL21: vec3<f32>, _sh7: f32,
+vSphericalL22: vec3<f32>, _sh8: f32,
+exposureLinear: f32,
+contrast: f32,
+_imgPad0: f32,
+_imgPad1: f32,
+};
+@group(0) @binding(0) var<uniform> scene: SceneUniforms;
+`;
+
+/** Standard material SceneUniforms with fog fields + binding.
+ *  Used by skybox-cubemap (Standard material skybox). */
+export const WGSL_SCENE_UNIFORMS_STD = `
+struct SceneUniforms {
+viewProjection: mat4x4<f32>,
+view: mat4x4<f32>,
+vEyePosition: vec4<f32>,
+vFogInfos: vec4<f32>,
+vFogColor: vec4<f32>,
+};
+@group(0) @binding(0) var<uniform> scene: SceneUniforms;
+`;
+
+/** Shadow-only SceneUniforms (minimal: just viewProjection) + binding.
+ *  Used by shadow depth shaders. */
+export const WGSL_SCENE_UNIFORMS_SHADOW = `
+struct SceneUniforms {
+viewProjection: mat4x4<f32>,
+};
+@group(0) @binding(0) var<uniform> scene: SceneUniforms;
+`;

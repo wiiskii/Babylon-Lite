@@ -1,0 +1,56 @@
+/** Hemispheric light data.
+ *  Push-based dirty tracking via ObservableVec3. */
+
+import type { LightBase } from "./types.js";
+import { createLightBase, applyWorldMatrixAccessors, ObservableVec3 } from "./light-base.js";
+import { localMatrixFromDirection } from "./light-matrix.js";
+
+export interface HemisphericLight extends LightBase {
+    readonly lightType: "hemispheric";
+    direction: ObservableVec3;
+    intensity: number;
+    diffuseColor: [number, number, number];
+    groundColor: [number, number, number];
+}
+
+/** Create a hemispheric light. Returns plain data — caller adds to scene.
+ *  Matches Babylon.js HemisphericLight behavior. */
+export function createHemisphericLight(direction: [number, number, number] = [0, 1, 0], intensity: number = 1.0): HemisphericLight {
+    const { wm, onDirty, lvs } = createLightBase(() => localMatrixFromDirection(light.direction.x, light.direction.y, light.direction.z));
+
+    const light = applyWorldMatrixAccessors<HemisphericLight>(
+        {
+            lightType: "hemispheric" as const,
+            direction: new ObservableVec3(direction[0], direction[1], direction[2], onDirty),
+            intensity,
+            diffuseColor: [1, 1, 1] as [number, number, number],
+            groundColor: [0, 0, 0] as [number, number, number],
+
+            _registerPbr: async () => {
+                const { registerHemisphericPbrLight } = await import("./hemispheric-pbr.js");
+                registerHemisphericPbrLight();
+            },
+            _writeStandardLightUbo: (data: Float32Array, offset: number) => {
+                const o = offset;
+                const w = light.worldMatrix;
+                // Direction = worldMatrix column 2
+                data[o] = w[8]!;
+                data[o + 1] = w[9]!;
+                data[o + 2] = w[10]!;
+                data[o + 3] = 3;
+                data[o + 4] = light.diffuseColor[0] * light.intensity;
+                data[o + 5] = light.diffuseColor[1] * light.intensity;
+                data[o + 6] = light.diffuseColor[2] * light.intensity;
+                data[o + 8] = light.diffuseColor[0] * light.intensity;
+                data[o + 9] = light.diffuseColor[1] * light.intensity;
+                data[o + 10] = light.diffuseColor[2] * light.intensity;
+                data[o + 12] = light.groundColor[0] * light.intensity;
+                data[o + 13] = light.groundColor[1] * light.intensity;
+                data[o + 14] = light.groundColor[2] * light.intensity;
+            },
+        },
+        wm,
+        lvs
+    );
+    return light;
+}

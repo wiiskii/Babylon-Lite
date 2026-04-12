@@ -1,0 +1,223 @@
+/**
+ * Pixel comparison utilities for parity tests.
+ * Compares screenshots from Babylon Lite against golden reference images.
+ */
+import { PNG } from "pngjs";
+import * as fs from "fs";
+import * as path from "path";
+import type { Browser } from "@playwright/test";
+
+export interface SceneConfig {
+    id: number;
+    slug: string;
+    name: string;
+    maxMad: number;
+    maxRegionMad?: number;
+    maxRawKB?: number;
+    maxGzipKB?: number;
+}
+
+let _sceneConfigCache: SceneConfig[] | null = null;
+
+function loadSceneConfigAll(): SceneConfig[] {
+    if (!_sceneConfigCache) {
+        const configPath = path.resolve(__dirname, "../../scene-config.json");
+        _sceneConfigCache = JSON.parse(fs.readFileSync(configPath, "utf-8")) as SceneConfig[];
+    }
+    return _sceneConfigCache;
+}
+
+/** Load the MAD threshold config for a scene by its ID. */
+export function getSceneConfig(sceneId: number): SceneConfig {
+    const all = loadSceneConfigAll();
+    const entry = all.find((s) => s.id === sceneId);
+    if (!entry) {
+        throw new Error(`No scene-config.json entry for scene ${sceneId}`);
+    }
+    return entry;
+}
+
+export interface CompareResult {
+    totalPixels: number;
+    exactMatch: number;
+    within1: number;
+    within3: number;
+    within5: number;
+    mad: number; // mean absolute difference
+    maxDiff: number;
+}
+
+export interface RegionResult extends CompareResult {
+    regionPixels: number;
+}
+
+/** Parse a PNG file into {width, height, data: Uint8Array (RGBA)} */
+function loadPng(path: string): { width: number; height: number; data: Uint8Array } {
+    const buf = fs.readFileSync(path);
+    const png = PNG.sync.read(buf);
+    return { width: png.width, height: png.height, data: new Uint8Array(png.data) };
+}
+
+/** Compare two PNG files pixel-by-pixel. Returns stats for all pixels. */
+export function compareImages(actualPath: string, referencePath: string): CompareResult {
+    const actual = loadPng(actualPath);
+    const ref = loadPng(referencePath);
+    const w = Math.min(actual.width, ref.width);
+    const h = Math.min(actual.height, ref.height);
+
+    let exactMatch = 0,
+        within1 = 0,
+        within3 = 0,
+        within5 = 0;
+    let sumDiff = 0,
+        maxDiff = 0;
+    const total = w * h;
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const ai = (y * actual.width + x) * 4;
+            const ri = (y * ref.width + x) * 4;
+            let pixMax = 0;
+            let pixSum = 0;
+            for (let c = 0; c < 3; c++) {
+                const d = Math.abs(actual.data[ai + c] - ref.data[ri + c]);
+                pixSum += d;
+                if (d > pixMax) pixMax = d;
+            }
+            sumDiff += pixSum / 3;
+            if (pixMax > maxDiff) maxDiff = pixMax;
+            if (pixMax === 0) exactMatch++;
+            if (pixMax <= 1) within1++;
+            if (pixMax <= 3) within3++;
+            if (pixMax <= 5) within5++;
+        }
+    }
+
+    return {
+        totalPixels: total,
+        exactMatch,
+        within1,
+        within3,
+        within5,
+        mad: sumDiff / total,
+        maxDiff,
+    };
+}
+
+/**
+ * Compare only a masked region (non-background pixels in the reference).
+ * Background is defined as pixels within `threshold` Euclidean distance of `bgColor`.
+ */
+export function compareRegion(actualPath: string, referencePath: string, bgColor: [number, number, number] = [51, 51, 77], threshold = 30): RegionResult {
+    const actual = loadPng(actualPath);
+    const ref = loadPng(referencePath);
+    const w = Math.min(actual.width, ref.width);
+    const h = Math.min(actual.height, ref.height);
+
+    let exactMatch = 0,
+        within1 = 0,
+        within3 = 0,
+        within5 = 0;
+    let sumDiff = 0,
+        maxDiff = 0,
+        regionPixels = 0;
+
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const ri = (y * ref.width + x) * 4;
+            // Check if reference pixel is background
+            const dr = ref.data[ri] - bgColor[0];
+            const dg = ref.data[ri + 1] - bgColor[1];
+            const db = ref.data[ri + 2] - bgColor[2];
+            if (Math.sqrt(dr * dr + dg * dg + db * db) <= threshold) continue;
+
+            regionPixels++;
+            const ai = (y * actual.width + x) * 4;
+            let pixMax = 0;
+            let pixSum = 0;
+            for (let c = 0; c < 3; c++) {
+                const d = Math.abs(actual.data[ai + c] - ref.data[ri + c]);
+                pixSum += d;
+                if (d > pixMax) pixMax = d;
+            }
+            sumDiff += pixSum / 3;
+            if (pixMax > maxDiff) maxDiff = pixMax;
+            if (pixMax === 0) exactMatch++;
+            if (pixMax <= 1) within1++;
+            if (pixMax <= 3) within3++;
+            if (pixMax <= 5) within5++;
+        }
+    }
+
+    return {
+        totalPixels: w * h,
+        regionPixels,
+        exactMatch,
+        within1,
+        within3,
+        within5,
+        mad: regionPixels > 0 ? sumDiff / regionPixels : 0,
+        maxDiff,
+    };
+}
+
+// ── Golden reference capture ──────────────────────────────────────
+
+export interface CaptureGoldenOptions {
+    /** Scene ID number (e.g. 7 for scene7) */
+    sceneId: number;
+    /** seekTime query param for animated scenes (omit for static) */
+    seekTime?: number;
+    /** Page load timeout in ms (default: 60_000) */
+    timeout?: number;
+    /** GPU settle delay in ms (default: 1500) */
+    settleMs?: number;
+}
+
+/**
+ * Capture a fresh golden reference from the BJS reference page.
+ * Opens babylon-ref-sceneN.html in a new page, waits for ready + animation freeze,
+ * screenshots the canvas, and saves as babylon-ref-golden.png.
+ *
+ * Must be called with the Page's browser (page.context().browser()).
+ */
+export async function captureGolden(browser: Browser, opts: CaptureGoldenOptions): Promise<string> {
+    const config = getSceneConfig(opts.sceneId);
+    const refDir = path.resolve(__dirname, `../../reference/${config.slug}`);
+    const goldenPath = path.join(refDir, "babylon-ref-golden.png");
+    const timeout = opts.timeout ?? 60_000;
+    const settleMs = opts.settleMs ?? 1500;
+
+    // Open BJS ref page in a fresh context to avoid interfering with Lite page
+    const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+    const bjsPage = await context.newPage();
+    const urlParams = opts.seekTime !== undefined ? `?seekTime=${opts.seekTime}` : "";
+    await bjsPage.goto(`/babylon-ref-scene${opts.sceneId}.html${urlParams}`);
+
+    // Wait for BJS scene ready
+    await bjsPage.waitForFunction(() => document.querySelector("canvas")?.dataset.ready === "true", { timeout });
+
+    // For animated scenes, wait for animation freeze
+    if (opts.seekTime !== undefined) {
+        await bjsPage.waitForFunction(() => document.querySelector("canvas")?.dataset.animationFrozen === "true", { timeout });
+    }
+
+    // Wait for BJS loading screen to disappear (it overlays the canvas)
+    await bjsPage
+        .waitForFunction(() => !document.getElementById("babylonjsLoadingDiv"), { timeout: 10_000 })
+        .catch(() => {
+            // Loading div may never have appeared — that's fine
+        });
+
+    // GPU queue flush — extra time for heavy scenes with many textures
+    await bjsPage.waitForTimeout(settleMs);
+
+    // Screenshot canvas and save as golden
+    fs.mkdirSync(refDir, { recursive: true });
+    await bjsPage.locator("canvas").screenshot({ path: goldenPath });
+
+    await bjsPage.close();
+    await context.close();
+
+    return goldenPath;
+}

@@ -1,0 +1,116 @@
+/**
+ * 2D Texture loader — loads an image from URL into a GPU texture.
+ *
+ * Supports:
+ * - rgba8unorm format (standard for diffuse/albedo textures)
+ * - Automatic mipmap generation via copyExternalImageToTexture
+ * - UV scaling via a texture matrix
+ */
+
+import { acquireTexture, getOrCreateSampler } from "../resource/gpu-pool.js";
+import type { Engine } from "../engine/engine.js";
+import type { EngineInternal } from "../engine/engine.js";
+
+export interface Texture2D {
+    texture: GPUTexture;
+    view: GPUTextureView;
+    sampler: GPUSampler;
+    width: number;
+    height: number;
+}
+
+export interface Texture2DOptions {
+    /** Generate mipmaps. Default true. */
+    mipMaps?: boolean;
+    /** Address mode U. Default 'repeat'. */
+    addressModeU?: GPUAddressMode;
+    /** Address mode V. Default 'repeat'. */
+    addressModeV?: GPUAddressMode;
+    /** Min filter. Default 'linear'. */
+    minFilter?: GPUFilterMode;
+    /** Mag filter. Default 'linear'. */
+    magFilter?: GPUFilterMode;
+    /** Flip Y axis during upload. Default true (matches Babylon.js convention). */
+    invertY?: boolean;
+    /** Use sRGB format (rgba8unorm-srgb). Enables hardware sRGB→linear on sample.
+     *  Use for color/albedo textures in PBR workflows. Default false. */
+    srgb?: boolean;
+}
+
+// Per-device URL cache: same (url + options) → shared Texture2D promise.
+// WeakMap ensures the cache is GC'd when the device is collected.
+const _tex2dCache = new WeakMap<GPUDevice, Map<string, Promise<Texture2D>>>();
+
+/** Clear the texture cache for a device, releasing cache-held refs. */
+export function clearTexture2DCache(device: GPUDevice): void {
+    _tex2dCache.delete(device);
+}
+
+export function loadTexture2D(engine: Engine, url: string, opts: Texture2DOptions = {}): Promise<Texture2D> {
+    const device = (engine as EngineInternal).device;
+    let dc = _tex2dCache.get(device);
+    if (!dc) {
+        dc = new Map();
+        _tex2dCache.set(device, dc);
+    }
+
+    const key = `${url}\0${opts.mipMaps ?? true}\0${opts.addressModeU ?? "repeat"}\0${opts.addressModeV ?? "repeat"}\0${opts.minFilter ?? "linear"}\0${opts.magFilter ?? "linear"}\0${opts.invertY ?? true}\0${opts.srgb ?? false}`;
+    const hit = dc.get(key);
+    if (hit) {
+        return hit;
+    }
+
+    const map = dc;
+    const p = loadTexture2DImpl(device, url, opts);
+    map.set(key, p);
+    p.catch(() => map.delete(key));
+    return p;
+}
+
+async function loadTexture2DImpl(device: GPUDevice, url: string, opts: Texture2DOptions): Promise<Texture2D> {
+    const mipMaps = opts.mipMaps ?? true;
+    const addressModeU = opts.addressModeU ?? "repeat";
+    const addressModeV = opts.addressModeV ?? "repeat";
+    const invertY = opts.invertY ?? true;
+    const srgb = opts.srgb ?? false;
+    const format: GPUTextureFormat = srgb ? "rgba8unorm-srgb" : "rgba8unorm";
+
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const imageBitmap = await createImageBitmap(blob);
+
+    const width = imageBitmap.width;
+    const height = imageBitmap.height;
+    const mipLevelCount = mipMaps ? Math.floor(Math.log2(Math.max(width, height))) + 1 : 1;
+
+    const texture = device.createTexture({
+        size: { width, height },
+        format,
+        mipLevelCount,
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+
+    device.queue.copyExternalImageToTexture({ source: imageBitmap, flipY: invertY }, { texture }, { width, height });
+
+    if (mipMaps && mipLevelCount > 1) {
+        const { generateMipmaps } = await import("./generate-mipmaps.js");
+        generateMipmaps(device, texture);
+    }
+
+    const minF = opts.minFilter ?? "linear";
+    const magF = opts.magFilter ?? "linear";
+    const mipF: GPUMipmapFilterMode = mipMaps ? "linear" : "nearest";
+    const allLinear = minF === "linear" && magF === "linear" && mipF === "linear";
+    const sampler = getOrCreateSampler(device, {
+        addressModeU,
+        addressModeV,
+        minFilter: minF,
+        magFilter: magF,
+        mipmapFilter: mipF,
+        maxAnisotropy: allLinear ? 4 : 1,
+    });
+
+    const tex2d: Texture2D = { texture, view: texture.createView(), sampler, width, height };
+    acquireTexture(tex2d);
+    return tex2d;
+}

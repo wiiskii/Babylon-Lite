@@ -1,0 +1,102 @@
+/**
+ * HDR Environment Loader
+ *
+ * Loads a Radiance .hdr (RGBE) equirectangular panorama and produces
+ * GPU-ready IBL textures identical to BJS HDRCubeTexture.
+ *
+ * Pipeline:
+ *   1. Parse RGBE header + RLE scanlines → Float32 equirect (CPU)
+ *   2. Compute spherical harmonics from equirect (CPU)
+ *   3. Equirect → cubemap via compute shader (GPU)
+ *   4. Prefilter cubemap with importance-sampled GGX (GPU compute)
+ *   5. Generate BRDF split-sum LUT (GPU compute)
+ *   6. Return EnvironmentTextures (same interface as load-env.ts)
+ */
+
+import type { EnvironmentTextures } from "../loader-env/load-env.js";
+import type { SceneContext, SceneContextInternal } from "../scene/scene.js";
+import type { EngineInternal } from "../engine/engine.js";
+import { acquireGPUTexture, releaseGPUTexture } from "../resource/gpu-pool.js";
+import { assembleEnvironmentTextures } from "../loader-env/env-helpers.js";
+import { parseRGBE, computeSHFromEquirect } from "./hdr-parser.js";
+import { equirectToCubemapGPU, prefilterCubemapGPU, generateBrdfLut } from "./hdr-ibl-pipeline.js";
+
+// ─── Public API ─────────────────────────────────────────────────────────────
+
+export interface HdrLoadOptions {
+    /** Cubemap face size in pixels. Default 256. */
+    faceSize?: number;
+    /** When true, render the HDR cubemap as the skybox background. */
+    useCubemapSkybox?: boolean;
+    /** When true, skip the ground plane. */
+    skipGround?: boolean;
+    /** Skybox size matching BJS createDefaultEnvironment skyboxSize option. */
+    skyboxSize?: number;
+}
+
+export async function loadHdrEnvironment(scene: SceneContext, url: string, options?: HdrLoadOptions): Promise<EnvironmentTextures> {
+    const device = (scene.engine as EngineInternal).device;
+    const faceSize = options?.faceSize ?? 256;
+
+    // 1. Fetch and parse RGBE
+    const buffer = await fetch(url).then((r) => r.arrayBuffer());
+    const hdr = parseRGBE(buffer);
+
+    // 2. Compute spherical harmonics from equirect (CPU)
+    const irradianceSH = computeSHFromEquirect(hdr.data, hdr.width, hdr.height);
+
+    // 3. Equirect → cubemap (GPU compute)
+    const srcCube = equirectToCubemapGPU(device, hdr, faceSize);
+
+    // 4. Prefilter cubemap for IBL (GPU compute, importance-sampled GGX)
+    const mipCount = Math.floor(Math.log2(faceSize)) + 1;
+    const specularCube = prefilterCubemapGPU(device, srcCube, faceSize, mipCount);
+
+    // 5. BRDF LUT
+    const brdfLut = generateBrdfLut(device);
+
+    // 6. Assemble
+    const textures = assembleEnvironmentTextures(specularCube, brdfLut, irradianceSH, 1.0, device);
+
+    (scene as SceneContextInternal)._envTextures = textures;
+    (scene as SceneContextInternal)._irradianceSH = irradianceSH;
+
+    acquireGPUTexture(specularCube);
+    acquireGPUTexture(brdfLut);
+    const s = scene as SceneContextInternal;
+    s._disposables.push(() => {
+        releaseGPUTexture(specularCube);
+        releaseGPUTexture(brdfLut);
+    });
+
+    scene.imageProcessing.toneMappingEnabled = false;
+    scene.imageProcessing.exposure = 0.8;
+    scene.imageProcessing.contrast = 1.2;
+
+    // Register deferred builder for background renderables (skybox + ground)
+    // Re-registers itself if PBR scene BGL isn't ready yet (created by mesh builder)
+    const useHdr = !!options?.useCubemapSkybox;
+    const skipGround = !!options?.skipGround;
+    const bgBuilder = async (): Promise<void> => {
+        const bgl = (scene as SceneContextInternal)._pbrSceneBGL;
+        const bg = (scene as SceneContextInternal)._pbrSceneBG;
+        if (bgl && bg) {
+            // HDR cubemap skybox — dynamically imported only when requested
+            if (useHdr && textures.specularCubeView) {
+                const { buildHdrSkyboxRenderable } = await import("../material/pbr/background-hdr-skybox.js");
+                s._renderables.push(buildHdrSkyboxRenderable(scene, textures, bgl, bg, options?.skyboxSize));
+            }
+            // Solid skybox fallback + ground
+            if (!useHdr || !skipGround) {
+                const { buildBackgroundRenderables } = await import("../material/pbr/background-renderable.js");
+                const bgRenderables = await buildBackgroundRenderables(scene, textures, bgl, bg, undefined, { skipSkybox: useHdr, skipGround });
+                s._renderables.push(...bgRenderables);
+            }
+        } else {
+            s._deferredBuilders.push(bgBuilder);
+        }
+    };
+    s._deferredBuilders.push(bgBuilder);
+
+    return textures;
+}

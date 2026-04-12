@@ -1,0 +1,3390 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Babylon Lite — Scene Gallery</title>
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                background: #0d1117;
+                color: #e6edf3;
+                min-height: 100vh;
+            }
+            header {
+                padding: 2rem 2rem 1rem;
+                border-bottom: 1px solid #21262d;
+            }
+            header h1 {
+                font-size: 1.5rem;
+                font-weight: 600;
+            }
+            header h1 span {
+                color: #58a6ff;
+            }
+            header p {
+                color: #8b949e;
+                margin-top: 0.25rem;
+                font-size: 0.875rem;
+            }
+            .tabs {
+                display: flex;
+                gap: 0;
+                padding: 0 2rem;
+                margin-top: 1.5rem;
+                border-bottom: 1px solid #21262d;
+            }
+            .tab {
+                padding: 0.6rem 1.2rem;
+                cursor: pointer;
+                font-size: 0.875rem;
+                font-weight: 500;
+                color: #8b949e;
+                border: 1px solid transparent;
+                border-bottom: none;
+                border-radius: 6px 6px 0 0;
+                background: transparent;
+                transition: color 0.15s;
+                position: relative;
+                bottom: -1px;
+            }
+            .tab:hover {
+                color: #e6edf3;
+            }
+            .tab.active {
+                color: #f0f6fc;
+                font-weight: 600;
+                background: #161b22;
+                border-color: #21262d;
+                border-bottom-color: #161b22;
+                box-shadow: inset 0 2px 0 0 #f78166;
+            }
+            .tab .tab-badge {
+                display: inline-block;
+                font-size: 0.65rem;
+                padding: 0.1rem 0.4rem;
+                border-radius: 8px;
+                margin-left: 0.4rem;
+                font-weight: 600;
+                vertical-align: middle;
+            }
+            .tab-badge-src {
+                background: #1a3a1a;
+                color: #3fb950;
+            }
+            .tab-badge-bundle {
+                background: #1f3a5f;
+                color: #58a6ff;
+            }
+            .tab-hint {
+                padding: 0.5rem 1rem;
+                margin: 0.5rem 2rem 0.5rem;
+                background: #161b22;
+                border: 1px solid #30363d;
+                border-radius: 6px;
+                font-size: 0.85rem;
+                color: #8b949e;
+            }
+            .tab-hint code {
+                color: #e6edf3;
+            }
+            .tab-panel {
+                display: none;
+            }
+            .tab-panel.active {
+                display: block;
+            }
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+                gap: 1.5rem;
+                padding: 2rem;
+            }
+            .card {
+                background: #161b22;
+                border: 1px solid #21262d;
+                border-radius: 8px;
+                overflow: hidden;
+                transition:
+                    border-color 0.15s,
+                    box-shadow 0.15s;
+                text-decoration: none;
+                color: inherit;
+                display: block;
+            }
+            .card:hover {
+                border-color: #58a6ff;
+                box-shadow: 0 0 0 1px #58a6ff;
+            }
+            .card img {
+                width: 100%;
+                aspect-ratio: 16/9;
+                object-fit: cover;
+                border-bottom: 1px solid #21262d;
+                display: block;
+                background: #0d1117;
+            }
+            .card-body {
+                padding: 1rem;
+            }
+            .card-body h2 {
+                font-size: 1rem;
+                font-weight: 600;
+                margin-bottom: 0.25rem;
+                display: flex;
+                align-items: center;
+            }
+            .card-body h2 .pg-link {
+                margin-left: auto;
+                margin-top: 0;
+                flex-shrink: 0;
+            }
+            .card-body p {
+                font-size: 0.8rem;
+                color: #8b949e;
+                line-height: 1.4;
+            }
+            .badge {
+                display: inline-block;
+                font-size: 0.7rem;
+                padding: 0.15rem 0.5rem;
+                border-radius: 10px;
+                margin-top: 0.5rem;
+                font-weight: 500;
+            }
+            .badge-pbr {
+                background: #1f3a5f;
+                color: #58a6ff;
+            }
+            .badge-std {
+                background: #1a3a1a;
+                color: #3fb950;
+            }
+            .badge-shadow {
+                background: #3d1f00;
+                color: #d29922;
+            }
+            .badge-fog {
+                background: #2d1a3d;
+                color: #bc8cff;
+            }
+            .badge-anim {
+                background: #3d1a2e;
+                color: #f778ba;
+            }
+            .badge-env {
+                background: #2d331a;
+                color: #c4e63a;
+            }
+            .badge-gltf {
+                background: #0d3332;
+                color: #2dd4bf;
+            }
+            .badge-babylon {
+                background: #3d2600;
+                color: #f0a030;
+            }
+            .badge-procedural {
+                background: #1a2332;
+                color: #7d8da0;
+            }
+            .badge-bjs {
+                background: #3d2200;
+                color: #d29922;
+                text-decoration: none;
+                cursor: pointer;
+                margin-left: 0.3rem;
+            }
+            .badge-bjs:hover {
+                background: #5a3300;
+                color: #f0b030;
+            }
+            .pg-link {
+                display: inline-block;
+                font-size: 0.7rem;
+                padding: 0.15rem 0.5rem;
+                border-radius: 10px;
+                margin-top: 0.5rem;
+                margin-left: 0.4rem;
+                font-weight: 500;
+                background: #21262d;
+                color: #8b949e;
+                text-decoration: none;
+                cursor: pointer;
+                transition:
+                    background 0.15s,
+                    color 0.15s;
+            }
+            .pg-link:hover {
+                background: #30363d;
+                color: #e6edf3;
+            }
+
+            /* ── Parity Diff Tab ─────────────────────────────────── */
+            .parity-toolbar {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                padding: 1.5rem 2rem 0.5rem;
+            }
+            .parity-toolbar p {
+                color: #8b949e;
+                font-size: 0.8rem;
+                flex: 1;
+            }
+            .parity-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(700px, 1fr));
+                gap: 1.5rem;
+                padding: 0.5rem 2rem 2rem;
+            }
+            .diff-card {
+                background: #161b22;
+                border: 1px solid #21262d;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+            .diff-card-header {
+                display: flex;
+                align-items: center;
+                padding: 0.6rem 1rem;
+                border-bottom: 1px solid #21262d;
+            }
+            .diff-card-header h3 {
+                font-size: 0.85rem;
+                font-weight: 600;
+                flex: 1;
+                margin: 0;
+            }
+            .diff-stats {
+                font-size: 0.7rem;
+                font-family: "SF Mono", "Cascadia Code", monospace;
+                color: #8b949e;
+                margin-right: 0.5rem;
+            }
+            .diff-stats .pass {
+                color: #3fb950;
+            }
+            .diff-stats .warn {
+                color: #d29922;
+            }
+            .diff-stats .fail {
+                color: #f85149;
+            }
+            .diff-images {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 1px;
+                background: #21262d;
+            }
+            .diff-slot {
+                background: #0d1117;
+                text-align: center;
+            }
+            .diff-slot-label {
+                font-size: 0.6rem;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                color: #8b949e;
+                padding: 0.3rem 0 0.15rem;
+                font-weight: 600;
+            }
+            .diff-slot img,
+            .diff-slot canvas {
+                width: 100%;
+                display: block;
+                aspect-ratio: 16/9;
+                object-fit: contain;
+                background: #0d1117;
+            }
+            .diff-slot .placeholder {
+                aspect-ratio: 16/9;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #30363d;
+                font-size: 0.75rem;
+            }
+            .diff-slot img,
+            .diff-slot canvas {
+                cursor: zoom-in;
+            }
+
+            /* ── Fullscreen Lightbox ──────────────────────────────── */
+            .lightbox-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                z-index: 9999;
+                background: rgba(0, 0, 0, 0.92);
+                cursor: zoom-out;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }
+            .lightbox-overlay.open {
+                display: flex;
+            }
+            .lightbox-label {
+                font-size: 0.75rem;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: #8b949e;
+                margin-bottom: 0.75rem;
+                font-weight: 600;
+                pointer-events: none;
+                user-select: none;
+            }
+            .lightbox-overlay img,
+            .lightbox-overlay canvas {
+                max-width: 95vw;
+                max-height: 85vh;
+                object-fit: contain;
+                border-radius: 4px;
+                box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+                image-rendering: auto;
+                pointer-events: none;
+            }
+            .lightbox-close {
+                position: absolute;
+                top: 1rem;
+                right: 1.5rem;
+                background: none;
+                border: none;
+                color: #8b949e;
+                font-size: 1.5rem;
+                cursor: pointer;
+                line-height: 1;
+                padding: 0.25rem;
+                transition: color 0.15s;
+            }
+            .lightbox-close:hover {
+                color: #e6edf3;
+            }
+            .lightbox-nav-bar {
+                display: flex;
+                gap: 0.25rem;
+                margin-top: 0.5rem;
+            }
+            .lightbox-nav {
+                background: rgba(255, 255, 255, 0.08);
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                color: #c9d1d9;
+                font-size: 1.25rem;
+                width: 3rem;
+                height: 2rem;
+                border-radius: 4px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition:
+                    background 0.15s,
+                    color 0.15s;
+                line-height: 1;
+                padding: 0;
+            }
+            .lightbox-nav:hover {
+                background: rgba(255, 255, 255, 0.16);
+                color: #e6edf3;
+            }
+            .lightbox-save {
+                background: rgba(255, 255, 255, 0.08);
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                color: #c9d1d9;
+                font-size: 0.8rem;
+                height: 2rem;
+                padding: 0 0.75rem;
+                border-radius: 4px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 0.35rem;
+                transition:
+                    background 0.15s,
+                    color 0.15s;
+                margin-left: 0.75rem;
+            }
+            .lightbox-save:hover {
+                background: rgba(255, 255, 255, 0.16);
+                color: #e6edf3;
+            }
+            .lightbox-hint {
+                font-size: 0.65rem;
+                color: #484f58;
+                margin-top: 0.75rem;
+                pointer-events: none;
+                user-select: none;
+            }
+
+            .size-info {
+                display: flex;
+                flex-direction: column;
+                gap: 0.25rem;
+                margin-top: 0.5rem;
+                font-size: 0.75rem;
+                font-family: "SF Mono", "Cascadia Code", monospace;
+            }
+            .size-row {
+                display: flex;
+                gap: 0.75rem;
+                align-items: center;
+            }
+            .size-info span {
+                color: #8b949e;
+            }
+            .size-info .size-value {
+                color: #e6edf3;
+                font-weight: 600;
+            }
+            .size-info .size-gzip {
+                color: #3fb950;
+            }
+            .size-info .size-label {
+                color: #58a6ff;
+                font-weight: 600;
+                min-width: 28px;
+            }
+            .size-info .size-label-bjs {
+                color: #f0883e;
+            }
+            .size-info .size-ratio {
+                color: #d29922;
+                font-weight: 600;
+            }
+
+            /* ── Perf Dashboard ─────────────────────────────────── */
+            .perf-toolbar {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 1.5rem 2rem 0.5rem;
+                flex-wrap: wrap;
+            }
+            .perf-toolbar p {
+                color: #8b949e;
+                font-size: 0.8rem;
+                flex: 1;
+            }
+            .perf-filter-pills {
+                display: flex;
+                gap: 0.35rem;
+                flex-wrap: wrap;
+                align-items: center;
+            }
+            .perf-filter-pills .filter-label {
+                font-size: 0.7rem;
+                color: #8b949e;
+                margin-right: 0.2rem;
+                font-weight: 500;
+            }
+            .pill-toggle {
+                display: inline-block;
+                font-size: 0.7rem;
+                padding: 0.15rem 0.5rem;
+                border-radius: 10px;
+                font-weight: 500;
+                cursor: pointer;
+                border: 1px solid transparent;
+                opacity: 0.45;
+                transition:
+                    opacity 0.15s,
+                    border-color 0.15s;
+                user-select: none;
+            }
+            .pill-toggle:hover {
+                opacity: 0.75;
+            }
+            .pill-toggle.active {
+                opacity: 1;
+                border-color: currentColor;
+            }
+            .perf-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(560px, 1fr));
+                gap: 1rem;
+                padding: 0.5rem 2rem 2rem;
+            }
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.4rem;
+                padding: 0.5rem 1rem;
+                border-radius: 6px;
+                border: 1px solid #30363d;
+                background: #21262d;
+                color: #e6edf3;
+                font-size: 0.8rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition:
+                    background 0.15s,
+                    border-color 0.15s;
+                font-family: inherit;
+            }
+            .btn:hover {
+                background: #30363d;
+                border-color: #58a6ff;
+            }
+            .btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+            .btn-primary {
+                background: #1f6feb;
+                border-color: #1f6feb;
+            }
+            .btn-primary:hover {
+                background: #388bfd;
+            }
+            .parity-sort-btn.active,
+            .bundle-sort-btn.active {
+                background: #1f6feb;
+                border-color: #1f6feb;
+            }
+            .perf-status {
+                font-size: 0.75rem;
+                color: #8b949e;
+                font-family: "SF Mono", "Cascadia Code", monospace;
+            }
+            .perf-scene-card {
+                background: #161b22;
+                border: 1px solid #21262d;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+            .perf-scene-header {
+                display: flex;
+                align-items: center;
+                padding: 0.5rem 1rem;
+                border-bottom: 1px solid #21262d;
+            }
+            .perf-scene-header h3 {
+                font-size: 0.8rem;
+                font-weight: 600;
+                flex: 1;
+                margin: 0;
+            }
+            .perf-scene-header .badge {
+                margin-right: 0.5rem;
+                margin-top: 0;
+            }
+            .perf-factor {
+                font-size: 0.65rem;
+                font-weight: 700;
+                padding: 0.15rem 0.5rem;
+                border-radius: 4px;
+                margin-left: 0.3rem;
+                font-family: "SF Mono", "Cascadia Code", monospace;
+            }
+            .perf-factor-good {
+                background: #0d3117;
+                color: #3fb950;
+            }
+            .perf-factor-bad {
+                background: #3d1117;
+                color: #f85149;
+            }
+            .perf-factor-neutral {
+                background: #1c1f24;
+                color: #8b949e;
+            }
+            .perf-metrics {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 0.5rem 1rem;
+                padding: 0.6rem 1rem;
+            }
+            @media (max-width: 500px) {
+                .perf-metrics {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .metric-group {
+                min-width: 0;
+            }
+            .metric-label {
+                font-size: 0.6rem;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                color: #8b949e;
+                margin-bottom: 0.3rem;
+                font-weight: 600;
+            }
+            .metric-bar-row {
+                display: flex;
+                align-items: center;
+                gap: 0.35rem;
+                margin-bottom: 0.2rem;
+                height: 16px;
+            }
+            .metric-engine {
+                width: 28px;
+                font-size: 0.6rem;
+                font-weight: 600;
+                text-align: right;
+                flex-shrink: 0;
+            }
+            .engine-lite {
+                color: #58a6ff;
+            }
+            .engine-bjs {
+                color: #f0883e;
+            }
+            .metric-bar-track {
+                flex: 1;
+                height: 14px;
+                background: #0d1117;
+                border-radius: 3px;
+                overflow: hidden;
+                position: relative;
+            }
+            .metric-bar {
+                height: 100%;
+                border-radius: 3px;
+                min-width: 2px;
+                transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+            }
+            .bar-lite {
+                background: linear-gradient(90deg, #1f6feb, #58a6ff);
+            }
+            .bar-bjs {
+                background: linear-gradient(90deg, #c46210, #f0883e);
+            }
+            .metric-value {
+                width: 56px;
+                font-size: 0.65rem;
+                font-weight: 600;
+                font-family: "SF Mono", "Cascadia Code", monospace;
+                flex-shrink: 0;
+                text-align: left;
+            }
+            .metric-value.winner {
+                color: #3fb950;
+            }
+            .metric-value.loser {
+                color: #f85149;
+            }
+            .metric-label.regression::after {
+                content: "⚠";
+                margin-left: 0.35rem;
+                color: #f85149;
+                font-size: 0.7rem;
+            }
+            .metric-placeholder {
+                color: #30363d;
+                font-size: 0.75rem;
+                font-family: "SF Mono", "Cascadia Code", monospace;
+            }
+            .perf-legend {
+                display: flex;
+                align-items: center;
+                gap: 1.5rem;
+                padding: 0 2rem 1rem;
+                font-size: 0.75rem;
+                color: #8b949e;
+            }
+            .legend-dot {
+                display: inline-block;
+                width: 10px;
+                height: 10px;
+                border-radius: 2px;
+                margin-right: 0.35rem;
+                vertical-align: middle;
+            }
+            .legend-lite {
+                background: #58a6ff;
+            }
+            .legend-bjs {
+                background: #f0883e;
+            }
+
+            /* ── Docs Section ─────────────────────────────────── */
+            .docs-toggle {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.4rem;
+                padding: 0.4rem 0.9rem;
+                border-radius: 6px;
+                border: 1px solid #30363d;
+                background: #21262d;
+                color: #e6edf3;
+                font-size: 0.8rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.15s;
+                font-family: inherit;
+                margin-top: 0.75rem;
+            }
+            .docs-toggle:hover {
+                background: #30363d;
+                border-color: #58a6ff;
+            }
+            .docs-toggle.active {
+                background: #1f6feb;
+                border-color: #1f6feb;
+            }
+
+            .docs-panel {
+                display: none;
+                border-bottom: 1px solid #21262d;
+                padding: 1.5rem 2rem 2rem;
+                max-height: 82vh;
+                overflow-y: auto;
+                scrollbar-color: #30363d #0d1117;
+            }
+            .docs-panel.open {
+                display: block;
+            }
+            .docs-section-title {
+                font-size: 1.05rem;
+                font-weight: 600;
+                color: #e6edf3;
+                margin: 0 0 1rem;
+                padding-bottom: 0.5rem;
+                border-bottom: 1px solid #21262d;
+            }
+            .docs-section-title span {
+                color: #58a6ff;
+            }
+
+            /* Architecture Diagram */
+            .arch-diagram {
+                max-width: 900px;
+                margin: 0 auto 0.5rem;
+            }
+            .arch-layer {
+                border: 1px solid #30363d;
+                border-radius: 8px;
+                padding: 0.6rem 1rem;
+                background: #161b22;
+            }
+            .arch-layer-label {
+                font-size: 0.65rem;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: #8b949e;
+                font-weight: 700;
+                margin-bottom: 0.3rem;
+            }
+            .arch-layer-desc {
+                font-size: 0.78rem;
+                color: #c9d1d9;
+                font-family: "SF Mono", "Cascadia Code", monospace;
+            }
+            .arch-arrow {
+                text-align: center;
+                color: #30363d;
+                font-size: 1.1rem;
+                line-height: 1.6;
+                user-select: none;
+            }
+            .arch-modules {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                margin-top: 0.4rem;
+            }
+            .arch-mod {
+                flex: 1;
+                min-width: 160px;
+                padding: 0.45rem 0.65rem;
+                border-radius: 6px;
+                border-left: 3px solid #30363d;
+                background: #0d1117;
+            }
+            .arch-mod-name {
+                font-size: 0.78rem;
+                font-weight: 600;
+                color: #e6edf3;
+            }
+            .arch-mod-sub {
+                font-size: 0.65rem;
+                color: #8b949e;
+                margin-top: 0.15rem;
+                line-height: 1.35;
+            }
+            .arch-mod-core {
+                border-left-color: #58a6ff;
+            }
+            .arch-mod-cam {
+                border-left-color: #bc8cff;
+            }
+            .arch-mod-light {
+                border-left-color: #d29922;
+            }
+            .arch-mod-mat {
+                border-left-color: #3fb950;
+            }
+            .arch-mod-mesh {
+                border-left-color: #f0883e;
+            }
+            .arch-mod-loader {
+                border-left-color: #f85149;
+            }
+            .arch-mod-anim {
+                border-left-color: #79c0ff;
+            }
+            .arch-mod-shadow {
+                border-left-color: #d29922;
+            }
+            .arch-mod-tex {
+                border-left-color: #bc8cff;
+            }
+            .arch-mod-math {
+                border-left-color: #8b949e;
+            }
+            .arch-mod-render {
+                border-left-color: #3fb950;
+            }
+            .arch-layer-app {
+                border-color: #1f6feb;
+                background: #0d1117;
+            }
+            .arch-layer-app .arch-layer-label {
+                color: #58a6ff;
+            }
+            .arch-layer-gpu {
+                border-color: #30363d;
+            }
+            .arch-layer-webgpu {
+                border-color: #21262d;
+                background: #0d1117;
+            }
+            .arch-layer-webgpu .arch-layer-label {
+                color: #484f58;
+            }
+
+            .arch-pillars {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                margin-top: 1.25rem;
+                max-width: 900px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+            .arch-pillar {
+                flex: 1;
+                min-width: 170px;
+                padding: 0.5rem 0.7rem;
+                border-radius: 6px;
+                border: 1px solid #21262d;
+                background: #161b22;
+            }
+            .arch-pillar-icon {
+                font-size: 1rem;
+                margin-bottom: 0.2rem;
+            }
+            .arch-pillar-name {
+                font-size: 0.72rem;
+                font-weight: 600;
+                color: #e6edf3;
+                margin-bottom: 0.15rem;
+            }
+            .arch-pillar-desc {
+                font-size: 0.62rem;
+                color: #8b949e;
+                line-height: 1.35;
+            }
+
+            /* Feature Table */
+            .feature-table-wrap {
+                max-width: 900px;
+                margin: 0 auto;
+                border: 1px solid #21262d;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+            .feature-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.78rem;
+            }
+            .feature-table th {
+                text-align: left;
+                padding: 0.5rem 0.75rem;
+                background: #161b22;
+                color: #8b949e;
+                font-weight: 600;
+                font-size: 0.7rem;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                border-bottom: 1px solid #21262d;
+                position: sticky;
+                top: 0;
+                z-index: 1;
+            }
+            .feature-table th:nth-child(2),
+            .feature-table th:nth-child(3) {
+                text-align: center;
+                width: 60px;
+            }
+            .feature-table td {
+                padding: 0.35rem 0.75rem;
+                border-bottom: 1px solid #161b22;
+                color: #c9d1d9;
+            }
+            .feature-table td:nth-child(2),
+            .feature-table td:nth-child(3) {
+                text-align: center;
+                font-size: 0.85rem;
+            }
+            .feature-table td:nth-child(4) {
+                font-size: 0.7rem;
+                color: #8b949e;
+            }
+            .feature-table tr:hover td {
+                background: rgba(56, 139, 253, 0.04);
+            }
+            .feat-cat td {
+                background: #161b22 !important;
+                color: #58a6ff !important;
+                font-weight: 600;
+                font-size: 0.72rem !important;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                padding: 0.55rem 0.75rem !important;
+                border-bottom: 1px solid #21262d !important;
+            }
+            .feat-highlight td:first-child {
+                color: #3fb950;
+                font-weight: 500;
+            }
+            .feat-filter-btn {
+                padding: 0.3rem 0.7rem;
+                border: 1px solid #30363d;
+                border-radius: 6px;
+                background: #0d1117;
+                color: #8b949e;
+                font-size: 0.72rem;
+                cursor: pointer;
+                transition: all 0.15s;
+            }
+            .feat-filter-btn:hover {
+                border-color: #58a6ff;
+                color: #c9d1d9;
+            }
+            .feat-filter-btn.active {
+                background: #1f6feb;
+                border-color: #1f6feb;
+                color: #fff;
+            }
+            .feature-table tr.feat-hidden {
+                display: none;
+            }
+            .pitch-card {
+                background: #161b22;
+                border: 1px solid #30363d;
+                border-radius: 10px;
+                padding: 1.25rem;
+                text-align: center;
+            }
+            .pitch-card-icon {
+                font-size: 2rem;
+                margin-bottom: 0.4rem;
+            }
+            .pitch-card-value {
+                font-size: 1.8rem;
+                font-weight: 700;
+                color: #3fb950;
+                line-height: 1.1;
+            }
+            .pitch-card-label {
+                font-size: 0.72rem;
+                color: #8b949e;
+                margin-top: 0.3rem;
+            }
+            .pitch-card-sub {
+                font-size: 0.65rem;
+                color: #484f58;
+                margin-top: 0.2rem;
+            }
+            #pitch-table th, #pitch-table td {
+                font-size: 0.72rem;
+                white-space: nowrap;
+            }
+            #pitch-table .pitch-thumb {
+                width: 32px;
+                height: 32px;
+                object-fit: cover;
+                border-radius: 4px;
+                vertical-align: middle;
+            }
+            #pitch-table th[data-sort-key] {
+                cursor: pointer;
+                user-select: none;
+                position: relative;
+                padding-right: 1.2em;
+            }
+            #pitch-table th[data-sort-key]:hover {
+                color: #58a6ff;
+            }
+            #pitch-table th[data-sort-key]::after {
+                content: "⇅";
+                position: absolute;
+                right: 0.15em;
+                opacity: 0.3;
+                font-size: 0.7em;
+            }
+            #pitch-table th[data-sort-key].sort-asc::after {
+                content: "▲";
+                opacity: 0.85;
+                color: #58a6ff;
+            }
+            #pitch-table th[data-sort-key].sort-desc::after {
+                content: "▼";
+                opacity: 0.85;
+                color: #58a6ff;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>Babylon <span>Lite</span> — Scene Gallery</h1>
+            <p>WebGPU rendering engine · pixel-perfect parity with Babylon.js</p>
+            <button class="docs-toggle" id="docs-toggle" onclick="toggleDocs()">📖 Architecture &amp; Features</button>
+            <button class="docs-toggle" id="pitch-toggle" onclick="togglePitch()" style="margin-left: 0.5rem">📊 Performance Summary</button>
+        </header>
+
+        <div id="docs-panel" class="docs-panel">
+            <h3 class="docs-section-title">🏗️ <span>Architecture Overview</span></h3>
+            <div class="arch-diagram">
+                <div class="arch-layer arch-layer-app">
+                    <div class="arch-layer-label">Application Layer</div>
+                    <div class="arch-layer-desc">import { createEngine, loadGltf, createPbrMaterial, ... } from 'babylon-lite'</div>
+                </div>
+                <div class="arch-arrow">▼</div>
+                <div class="arch-layer">
+                    <div class="arch-layer-label">Core Modules</div>
+                    <div class="arch-modules">
+                        <div class="arch-mod arch-mod-core">
+                            <div class="arch-mod-name">Engine</div>
+                            <div class="arch-mod-sub">WebGPU device · swapchain · 4× MSAA · depth/stencil · frame loop · resize</div>
+                        </div>
+                        <div class="arch-mod arch-mod-core">
+                            <div class="arch-mod-name">Scene</div>
+                            <div class="arch-mod-sub">Context · graph owner · hierarchy · parent-child world matrix · material swap queue · disposal</div>
+                        </div>
+                        <div class="arch-mod arch-mod-cam">
+                            <div class="arch-mod-name">Camera</div>
+                            <div class="arch-mod-sub">ArcRotate · Free · orbit / zoom / pan · inertia · IWorldMatrixProvider · parentable</div>
+                        </div>
+                        <div class="arch-mod arch-mod-light">
+                            <div class="arch-mod-name">Lights</div>
+                            <div class="arch-mod-sub">Hemispheric · Directional · Point · Spot · multi-light UBO · parentable</div>
+                        </div>
+                    </div>
+                    <div class="arch-modules">
+                        <div class="arch-mod arch-mod-mat">
+                            <div class="arch-mod-name">Materials</div>
+                            <div class="arch-mod-sub">PBR metallic-roughness · spec-gloss · Standard Blinn-Phong · background/ground</div>
+                        </div>
+                        <div class="arch-mod arch-mod-mesh">
+                            <div class="arch-mod-name">Meshes</div>
+                            <div class="arch-mod-sub">Sphere · box · torus · ground · heightmap · thin instances · GPU upload</div>
+                        </div>
+                        <div class="arch-mod arch-mod-loader">
+                            <div class="arch-mod-name">Loaders</div>
+                            <div class="arch-mod-sub">glTF / GLB · .babylon · .env · .hdr panorama · cube skybox</div>
+                        </div>
+                        <div class="arch-mod arch-mod-anim">
+                            <div class="arch-mod-name">Animation</div>
+                            <div class="arch-mod-sub">Groups · play/pause/seek/loop · linear/step/cubic spline · morph weights</div>
+                        </div>
+                    </div>
+                    <div class="arch-modules">
+                        <div class="arch-mod arch-mod-shadow">
+                            <div class="arch-mod-name">Shadows</div>
+                            <div class="arch-mod-sub">ESM directional · PCF spot · depth pass · Gaussian blur · configurable bias/darkness</div>
+                        </div>
+                        <div class="arch-mod arch-mod-tex">
+                            <div class="arch-mod-name">Textures</div>
+                            <div class="arch-mod-sub">2D · cube · solid color · GPU mipmap gen · sRGB · sampler config</div>
+                        </div>
+                        <div class="arch-mod arch-mod-math">
+                            <div class="arch-mod-name">Math</div>
+                            <div class="arch-mod-sub">Vec3/4 · Mat4 · Quat slerp · Color3/4 · ObservableVec3 · ObservableQuat · LH column-major</div>
+                        </div>
+                        <div class="arch-mod arch-mod-render">
+                            <div class="arch-mod-name">Render Pipeline</div>
+                            <div class="arch-mod-sub">Renderable · pre-pass · scene uniforms · opaque/transparent ordering</div>
+                        </div>
+                    </div>
+                    <div class="arch-modules">
+                        <div class="arch-mod arch-mod-core">
+                            <div class="arch-mod-name">Picking</div>
+                            <div class="arch-mod-sub">GPU ID pass · CPU ray/triangle · thin-instance support · normal/UV detail</div>
+                        </div>
+                        <div class="arch-mod arch-mod-core">
+                            <div class="arch-mod-name">Skeleton</div>
+                            <div class="arch-mod-sub">4/8-bone skinning · GPU bone textures · morph target blending</div>
+                        </div>
+                        <div class="arch-mod arch-mod-core">
+                            <div class="arch-mod-name">Shader Composer</div>
+                            <div class="arch-mod-sub">Fragment-based composition · topological ordering · slot injection · WGSL generation</div>
+                        </div>
+                        <div class="arch-mod arch-mod-core">
+                            <div class="arch-mod-name">Resource Pool</div>
+                            <div class="arch-mod-sub">GPU buffer/texture pooling · automatic cleanup · device lifecycle</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="arch-arrow">▼</div>
+                <div class="arch-layer arch-layer-gpu">
+                    <div class="arch-layer-label">GPU Pipeline</div>
+                    <div class="arch-layer-desc">WGSL Shaders · GPURenderPipeline · GPUBindGroup · GPUBuffer · GPUTexture · GPUCommandEncoder</div>
+                </div>
+                <div class="arch-arrow">▼</div>
+                <div class="arch-layer arch-layer-webgpu">
+                    <div class="arch-layer-label">WebGPU</div>
+                    <div class="arch-layer-desc">GPUDevice · GPUAdapter · GPURenderPassEncoder · GPUComputePassEncoder · navigator.gpu</div>
+                </div>
+            </div>
+
+            <div class="arch-pillars">
+                <div class="arch-pillar">
+                    <div class="arch-pillar-icon">🌳</div>
+                    <div class="arch-pillar-name">100% Tree-Shakable</div>
+                    <div class="arch-pillar-desc">Zero module-level side effects. Import only what you use — unused features are stripped from the bundle.</div>
+                </div>
+                <div class="arch-pillar">
+                    <div class="arch-pillar-icon">⚡</div>
+                    <div class="arch-pillar-name">WebGPU Exclusive</div>
+                    <div class="arch-pillar-desc">No WebGL fallback. Built entirely around modern GPU paradigms: render pipelines, compute shaders, bind groups.</div>
+                </div>
+                <div class="arch-pillar">
+                    <div class="arch-pillar-icon">🎯</div>
+                    <div class="arch-pillar-name">Pixel-Perfect Parity</div>
+                    <div class="arch-pillar-desc">Rendering output is mathematically identical to Babylon.js. Validated via automated pixel diff testing.</div>
+                </div>
+                <div class="arch-pillar">
+                    <div class="arch-pillar-icon">📦</div>
+                    <div class="arch-pillar-name">Minimal Footprint</div>
+                    <div class="arch-pillar-desc">Dramatically smaller bundles than Babylon.js. Data-oriented design, flat arrays for GPU transfers.</div>
+                </div>
+                <div class="arch-pillar">
+                    <div class="arch-pillar-icon">🔌</div>
+                    <div class="arch-pillar-name">One-Way Data Ownership</div>
+                    <div class="arch-pillar-desc">Scene owns everything. Meshes, lights, cameras are plain data — zero circular deps, trivial serialization.</div>
+                </div>
+            </div>
+
+            <h3 class="docs-section-title" style="margin-top: 1.75rem">📊 <span>Feature Comparison</span> — Babylon Lite vs Babylon.js</h3>
+            <div style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button class="feat-filter-btn active" data-filter="all" onclick="filterFeatures('all')">All</button>
+                <button class="feat-filter-btn" data-filter="implemented" onclick="filterFeatures('implemented')">✅ Implemented</button>
+                <button class="feat-filter-btn" data-filter="missing" onclick="filterFeatures('missing')">— Missing</button>
+            </div>
+            <div style="margin-bottom: 0.75rem; font-size: 0.7rem; color: #8b949e; display: flex; gap: 1.2rem; flex-wrap: wrap;">
+                <span>✅ Supported</span>
+                <span>⚡ Partial</span>
+                <span>— Not available</span>
+                <span style="color: #3fb950">● Green row = Lite advantage</span>
+            </div>
+            <div class="feature-table-wrap">
+                <table class="feature-table">
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Lite</th>
+                            <th>BJS</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rendering API -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Rendering API</td>
+                        </tr>
+                        <tr class="feat-highlight">
+                            <td>WebGPU</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Lite is WebGPU-exclusive — zero abstraction overhead</td>
+                        </tr>
+                        <tr>
+                            <td>WebGL 2.0</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td>Not planned — WebGPU only by design</td>
+                        </tr>
+                        <tr>
+                            <td>WebGL 1.0</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td>Not planned</td>
+                        </tr>
+                        <tr>
+                            <td>4× MSAA</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Depth / Stencil Buffer</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>depth24plus-stencil8</td>
+                        </tr>
+                        <tr>
+                            <td>HDR Rendering</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Tone Mapping</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Image processing pipeline</td>
+                        </tr>
+                        <tr>
+                            <td>Exposure / Contrast</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Via ImageProcessingConfig</td>
+                        </tr>
+                        <tr>
+                            <td>Canvas Resize Handling</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Automatic per-frame</td>
+                        </tr>
+                        <tr>
+                            <td>Draw Call Counting</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+
+                        <!-- Materials -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Materials</td>
+                        </tr>
+                        <tr>
+                            <td>PBR Metallic-Roughness</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Full GGX / Smith / Schlick BRDF</td>
+                        </tr>
+                        <tr>
+                            <td>PBR Specular-Glossiness</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>KHR_materials_pbrSpecularGlossiness</td>
+                        </tr>
+                        <tr>
+                            <td>Standard Material (Blinn-Phong)</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Diffuse, specular, ambient, emissive</td>
+                        </tr>
+                        <tr>
+                            <td>Background Material</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Ground plane + skybox rendering</td>
+                        </tr>
+                        <tr>
+                            <td>Normal Mapping</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Cotangent frame, invertNormalMapX</td>
+                        </tr>
+                        <tr>
+                            <td>Emissive Textures</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Occlusion (AO) Maps</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>ORM texture packing</td>
+                        </tr>
+                        <tr>
+                            <td>Metallic Reflectance Map</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>metallicReflectanceTexture support</td>
+                        </tr>
+                        <tr>
+                            <td>Specular Anti-Aliasing</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>getAARoughnessFactors when normal map present</td>
+                        </tr>
+                        <tr>
+                            <td>Alpha Blend / Alpha Test</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>OPAQUE, BLEND, MASK modes</td>
+                        </tr>
+                        <tr>
+                            <td>Double-Sided Rendering</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Opacity Textures</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>With depth-write disabled for transparent</td>
+                        </tr>
+                        <tr>
+                            <td>Bump / Height Mapping</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Lightmap Textures</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Standard material UV2</td>
+                        </tr>
+                        <tr>
+                            <td>Ambient Textures</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Reflection Textures</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Spherical + planar coord modes</td>
+                        </tr>
+                        <tr>
+                            <td>UV Scaling / Offset</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>UV2 Channel</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>For lightmaps and AO</td>
+                        </tr>
+                        <tr>
+                            <td>Node Material</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Shader Material</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Material Plugins</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>PBR Clear Coat</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Scene 19</td>
+                        </tr>
+                        <tr>
+                            <td>PBR Sheen</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Scene 21</td>
+                        </tr>
+                        <tr>
+                            <td>PBR Anisotropy</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>PBR Subsurface / Translucency</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>PBR Iridescence</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+
+                        <!-- Lights -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Lights</td>
+                        </tr>
+                        <tr>
+                            <td>Hemispheric Light</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Directional Light</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Point Light</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Spot Light</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>With cone angle + exponent falloff</td>
+                        </tr>
+                        <tr>
+                            <td>Multi-Light (N lights)</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Dynamic UBO packing</td>
+                        </tr>
+                        <tr>
+                            <td>Light Intensity / Color</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Diffuse + specular per light</td>
+                        </tr>
+                        <tr>
+                            <td>Area Lights</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+
+                        <!-- Cameras -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Cameras</td>
+                        </tr>
+                        <tr>
+                            <td>Arc Rotate Camera</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Orbit / zoom / pan / inertia</td>
+                        </tr>
+                        <tr>
+                            <td>Auto-Framing (fitToScene)</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Default camera for loaded models</td>
+                        </tr>
+                        <tr>
+                            <td>Free Camera</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Scene 18</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Follow Camera</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Universal Camera</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>VR / XR Camera</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Device Orientation Camera</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+
+                        <!-- Mesh & Geometry -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Mesh &amp; Geometry</td>
+                        </tr>
+                        <tr>
+                            <td>Sphere</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Configurable segments</td>
+                        </tr>
+                        <tr>
+                            <td>Box</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Torus</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Configurable thickness/tessellation</td>
+                        </tr>
+                        <tr>
+                            <td>Ground Plane</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Ground from Heightmap</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>GPU texture → vertex displacement</td>
+                        </tr>
+                        <tr>
+                            <td>Thin Instances</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>add / remove / set / flush API</td>
+                        </tr>
+                        <tr>
+                            <td>Observable Transforms</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>ObservableVec3 auto-dirty on mutation</td>
+                        </tr>
+                        <tr>
+                            <td>Transform Hierarchy</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Version-based lazy world matrix, IWorldMatrixProvider on all entities</td>
+                        </tr>
+                        <tr>
+                            <td>Clone Transform Node</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Cylinder</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Plane</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Disc / Ring</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Polyhedra</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Ribbon / Tube / Extrude</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>CSG (Boolean Ops)</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Instanced Meshes</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td>Use thin instances instead</td>
+                        </tr>
+
+                        <!-- Skeleton & Animation -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Skeleton &amp; Animation</td>
+                        </tr>
+                        <tr>
+                            <td>Skeletal Animation</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>GPU bone textures (rgba32float)</td>
+                        </tr>
+                        <tr>
+                            <td>4-Bone Skinning</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>JOINTS_0 / WEIGHTS_0</td>
+                        </tr>
+                        <tr>
+                            <td>8-Bone Skinning</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>JOINTS_1 / WEIGHTS_1</td>
+                        </tr>
+                        <tr>
+                            <td>Morph Targets</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Up to 4 targets, position + normal deltas</td>
+                        </tr>
+                        <tr>
+                            <td>Animation Groups</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>play / pause / stop / seek / loop / speed</td>
+                        </tr>
+                        <tr>
+                            <td>Linear Interpolation</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Step Interpolation</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Cubic Spline</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Deterministic Seek</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Fixed-timestep for parity testing</td>
+                        </tr>
+                        <tr>
+                            <td>Animation Blending</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Animation Events</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Animation Weights</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+
+                        <!-- Environment & IBL -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Environment &amp; IBL</td>
+                        </tr>
+                        <tr>
+                            <td>Babylon .env Files</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>RGBD cubemap decode</td>
+                        </tr>
+                        <tr>
+                            <td>HDR Panoramas (.hdr)</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Equirect → cubemap → prefiltered IBL</td>
+                        </tr>
+                        <tr>
+                            <td>Image-Based Lighting</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Split-sum approximation</td>
+                        </tr>
+                        <tr>
+                            <td>BRDF Lookup Table</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Pre-baked PNG, RGBD compute decode</td>
+                        </tr>
+                        <tr>
+                            <td>Spherical Harmonics</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Irradiance from environment</td>
+                        </tr>
+                        <tr>
+                            <td>DDS Cube Skybox</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Cubemap Skybox</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>6-face cube texture</td>
+                        </tr>
+                        <tr>
+                            <td>HDR Skybox</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Ground + Skybox Background</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Fresnel ground opacity, premultiplied alpha</td>
+                        </tr>
+                        <tr>
+                            <td>Fog (Linear / Exp / Exp²)</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Environment Rotation</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Reflection Probes</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+
+                        <!-- Shadows -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Shadows</td>
+                        </tr>
+                        <tr>
+                            <td>ESM Shadows (Directional)</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Depth + Gaussian blur passes</td>
+                        </tr>
+                        <tr>
+                            <td>Shadow Map Size Config</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Shadow Bias / Darkness</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Frustum Edge Falloff</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>PCF Shadows</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Scene 18</td>
+                        </tr>
+                        <tr>
+                            <td>Cascaded Shadow Maps</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Point Light Shadows</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Spot Light Shadows</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Scene 18 (PCF)</td>
+                        </tr>
+                        <tr>
+                            <td>Contact Hardening Shadows</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+
+                        <!-- Loaders -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Loaders</td>
+                        </tr>
+                        <tr>
+                            <td>glTF 2.0 / GLB</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Meshes, materials, skins, morphs, animations</td>
+                        </tr>
+                        <tr>
+                            <td>.babylon Format</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Meshes, standard materials, lights</td>
+                        </tr>
+                        <tr>
+                            <td>Environment .env</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>HDR Panorama .hdr</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Skybox Cube Textures</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>2D Texture Loading</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>With mipmap generation</td>
+                        </tr>
+                        <tr>
+                            <td>OBJ / MTL</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>STL</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>FBX</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>glTF Extensions (KHR_*)</td>
+                            <td>⚡</td>
+                            <td>✅</td>
+                            <td>Spec-gloss supported; others pending</td>
+                        </tr>
+                        <tr>
+                            <td>Draco Compression</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>KTX2 Textures</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+
+                        <!-- Textures -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Textures</td>
+                        </tr>
+                        <tr>
+                            <td>2D Textures</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Cube Textures</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Solid Color Textures</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Procedural 1×1 fill</td>
+                        </tr>
+                        <tr>
+                            <td>GPU Mipmap Generation</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Compute shader mipmaps</td>
+                        </tr>
+                        <tr>
+                            <td>sRGB Handling</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Format-based gamma correction</td>
+                        </tr>
+                        <tr>
+                            <td>Sampler Configuration</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Filter, address mode, anisotropy</td>
+                        </tr>
+                        <tr>
+                            <td>InvertY Control</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Procedural Textures</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Video Textures</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Dynamic Textures</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Render Target Textures</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Multi-Render Targets</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+
+                        <!-- Math -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Math Utilities</td>
+                        </tr>
+                        <tr>
+                            <td>Vec3 / Vec4</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>add, sub, scale, dot, cross, normalize, lerp</td>
+                        </tr>
+                        <tr>
+                            <td>Mat4 (4×4 Matrix)</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Multiply, inverse, lookAt, perspective, compose</td>
+                        </tr>
+                        <tr>
+                            <td>Quaternion</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Slerp, toMatrix, from Euler</td>
+                        </tr>
+                        <tr>
+                            <td>Color3 / Color4</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>ObservableVec3</td>
+                            <td>✅</td>
+                            <td>—</td>
+                            <td>Auto-dirty on mutation (Lite-specific)</td>
+                        </tr>
+                        <tr>
+                            <td>LH Column-Major Layout</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Aligned with WGSL/WebGPU conventions</td>
+                        </tr>
+
+                        <!-- Architecture / DX -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Architecture &amp; Developer Experience</td>
+                        </tr>
+                        <tr class="feat-highlight">
+                            <td>100% Tree-Shakable</td>
+                            <td>✅</td>
+                            <td>⚡</td>
+                            <td>Zero module-level side effects in Lite</td>
+                        </tr>
+                        <tr class="feat-highlight">
+                            <td>Minimal Bundle Size</td>
+                            <td>✅</td>
+                            <td>—</td>
+                            <td>Dramatically smaller than BJS for same scene</td>
+                        </tr>
+                        <tr class="feat-highlight">
+                            <td>Zero Side Effects</td>
+                            <td>✅</td>
+                            <td>—</td>
+                            <td>No register*() at import time, no globalThis</td>
+                        </tr>
+                        <tr class="feat-highlight">
+                            <td>One-Way Data Ownership</td>
+                            <td>✅</td>
+                            <td>—</td>
+                            <td>Components are plain data; scene is sole owner</td>
+                        </tr>
+                        <tr class="feat-highlight">
+                            <td>Materials Own Shaders</td>
+                            <td>✅</td>
+                            <td>—</td>
+                            <td>Self-contained material + pipeline units</td>
+                        </tr>
+                        <tr>
+                            <td>TypeScript</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Strict typing throughout</td>
+                        </tr>
+                        <tr>
+                            <td>Vite Native</td>
+                            <td>✅</td>
+                            <td>⚡</td>
+                            <td>First-class Vite integration</td>
+                        </tr>
+                        <tr>
+                            <td>Familiar BJS-like API</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Easy migration for BJS developers</td>
+                        </tr>
+                        <tr>
+                            <td>Hot Material Swap</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Object.defineProperty setter + rebuild queue</td>
+                        </tr>
+                        <tr>
+                            <td>Dispose / Cleanup</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>Full GPU resource cleanup on dispose</td>
+                        </tr>
+
+                        <!-- Advanced Features (BJS only) -->
+                        <tr class="feat-cat">
+                            <td colspan="4">Advanced Features</td>
+                        </tr>
+                        <tr>
+                            <td>Physics Engine</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td>Havok, Ammo.js, Cannon.js, Oimo</td>
+                        </tr>
+                        <tr>
+                            <td>Particle System</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td>CPU + GPU particles</td>
+                        </tr>
+                        <tr>
+                            <td>Post-Processing Pipeline</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td>Bloom, DOF, SSAO, FXAA, etc.</td>
+                        </tr>
+                        <tr>
+                            <td>GUI (2D / 3D UI)</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Sprites / SpriteManager</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Octree / Frustum Culling</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Level of Detail (LOD)</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Ray Casting / Picking</td>
+                            <td>✅</td>
+                            <td>✅</td>
+                            <td>GPU-based picking</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>WebXR / VR / AR</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Glow / Highlight Layer</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Screen-Space Reflections</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>SSAO</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Lens Flare</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Volumetric Light Scattering</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Decals</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Solid Particle System</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Fluid Rendering</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Bones IK</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Navigation Mesh</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Scene Optimizer</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Asset Manager</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>Scene Serialization</td>
+                            <td>—</td>
+                            <td>✅</td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="pitch-panel" class="docs-panel">
+            <h3 class="docs-section-title">📊 <span>Babylon Lite vs Babylon.js — At a Glance</span></h3>
+            <p style="color: #8b949e; font-size: 0.8rem; margin-bottom: 1.5rem;">
+                Averages computed from live benchmarks across all test scenes. Data from <code>bundle/manifest.json</code> and <code>perf-manifest.json</code>.
+            </p>
+            <div id="pitch-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem;"></div>
+            <h3 class="docs-section-title" style="margin-top: 1.5rem">📋 <span>Per-Scene Breakdown</span></h3>
+            <div style="overflow-x: auto;">
+                <table class="feature-table" id="pitch-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th data-sort-key="sceneNum">Scene</th>
+                            <th data-sort-key="liteKB">Bundle (Lite)</th>
+                            <th data-sort-key="bjsKB">Bundle (BJS)</th>
+                            <th data-sort-key="ratio">Ratio</th>
+                            <th data-sort-key="liteRaf">RAF ms (Lite)</th>
+                            <th data-sort-key="bjsRaf">RAF ms (BJS)</th>
+                            <th data-sort-key="speedup">Speedup</th>
+                            <th data-sort-key="liteMem">Memory (Lite)</th>
+                            <th data-sort-key="bjsMem">Memory (BJS)</th>
+                            <th data-sort-key="memSave">Savings</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pitch-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="source">Source <span class="tab-badge tab-badge-src">workspace</span></button>
+            <button class="tab" data-tab="parity">Parity <span class="tab-badge" style="background: #1a3a1a; color: #3fb950">diff</span></button>
+            <button class="tab" data-tab="bundle">Bundle <span class="tab-badge tab-badge-bundle">dist</span></button>
+            <button class="tab" data-tab="perf">Perf</button>
+        </div>
+
+        <div id="panel-source" class="tab-panel active">
+            <div class="tab-hint">💡 Live scenes served from Vite dev server. Start with: <code>pnpm dev</code></div>
+            <div class="perf-toolbar">
+                <div class="perf-filter-pills" id="source-filter-pills"></div>
+            </div>
+            <div class="grid" id="source-grid"></div>
+        </div>
+
+        <div id="panel-parity" class="tab-panel">
+            <div class="tab-hint">
+                💡 Compares golden reference (Babylon.js) vs Lite render from last <code>pnpm test:parity</code> run. MAD thresholds from <code>scene-config.json</code>; exceeding shown in <span style="color: #f85149">red</span>.
+            </div>
+            <div class="parity-toolbar">
+                <div style="flex: 1"></div>
+                <button class="btn parity-sort-btn active" onclick="sortParityGrid('num')" data-sort="num" title="Sort by scene number">Scene #</button>
+                <button class="btn parity-sort-btn" onclick="sortParityGrid('asc')" data-sort="asc" title="Sort by MAD ascending">MAD ↑</button>
+                <button class="btn parity-sort-btn" onclick="sortParityGrid('desc')" data-sort="desc" title="Sort by MAD descending">MAD ↓</button>
+                <button class="btn" id="parity-filter-btn" onclick="toggleParityFilter()" title="Show only scenes exceeding their MAD threshold">🔴 Diffs Only</button>
+            </div>
+            <div class="parity-grid" id="parity-grid"></div>
+        </div>
+
+        <div id="panel-bundle" class="tab-panel">
+            <div class="tab-hint">💡 Bundle sizes shown below come from <code>manifest.json</code>. To regenerate: <code>pnpm build:bundle-scenes</code></div>
+            <div class="perf-toolbar">
+                <div class="perf-filter-pills" id="bundle-filter-pills"></div>
+                <div style="flex: 1"></div>
+                <button class="btn bundle-sort-btn active" onclick="sortBundleGrid('num')" data-sort="num" title="Sort by scene number">Scene #</button>
+                <button class="btn bundle-sort-btn" onclick="sortBundleGrid('asc')" data-sort="asc" title="Sort by Lite gzip size ascending">Size ↑</button>
+                <button class="btn bundle-sort-btn" onclick="sortBundleGrid('desc')" data-sort="desc" title="Sort by Lite gzip size descending">Size ↓</button>
+            </div>
+            <div class="grid" id="bundle-grid"></div>
+        </div>
+
+        <div id="panel-perf" class="tab-panel">
+            <div class="tab-hint">💡 RAF callback CPU time per scene, measured via Playwright. <span id="perf-manifest-status" style="color: #3fb950"></span></div>
+            <div class="perf-toolbar">
+                <div class="perf-filter-pills" id="perf-filter-pills"></div>
+                <div style="flex: 1"></div>
+                <button class="btn" id="perf-filter-btn" onclick="togglePerfFilter()" title="Show only scenes where BJS beats Lite on any metric">⚠ Regressions Only</button>
+                <span id="perf-status" class="perf-status"></span>
+            </div>
+            <div class="perf-legend">
+                <span><span class="legend-dot legend-lite"></span>Babylon Lite</span>
+                <span><span class="legend-dot legend-bjs"></span>Babylon.js</span>
+                <span style="color: #3fb950">● = winner</span>
+            </div>
+
+            <div class="perf-grid" id="perf-grid"></div>
+        </div>
+
+        <script>
+            // ── Tag labels for badge rendering and filter pills ──
+            var TAG_LABELS = {
+                pbr: { label: "PBR", cls: "badge-pbr" },
+                std: { label: "Standard", cls: "badge-std" },
+                gltf: { label: "glTF", cls: "badge-gltf" },
+                babylon: { label: ".babylon", cls: "badge-babylon" },
+                procedural: { label: "Procedural", cls: "badge-procedural" },
+                fog: { label: "Fog", cls: "badge-fog" },
+                shadow: { label: "Shadows", cls: "badge-shadow" },
+                anim: { label: "Anim", cls: "badge-anim" },
+                env: { label: "HDR", cls: "badge-env" }
+            };
+
+            function renderBadges(tags) {
+                return tags.filter(function(t) { return TAG_LABELS[t]; }).map(function(t) {
+                    return '<span class="badge ' + TAG_LABELS[t].cls + '">' + TAG_LABELS[t].label + '</span>';
+                }).join("");
+            }
+
+            function renderFilterPills(containerId, toggleFnName) {
+                var el = document.getElementById(containerId);
+                if (!el) return;
+                var pills = Object.keys(TAG_LABELS).map(function(tag) {
+                    var t = TAG_LABELS[tag];
+                    return '<span class="pill-toggle ' + t.cls + '" data-filter="' + tag + '" onclick="' + toggleFnName + '(this)">' + t.label + '</span>';
+                });
+                el.innerHTML = '<span class="filter-label">Filter:</span>' + pills.join("");
+            }
+
+            // ── Init functions for each tab ──
+            function initSourceGrid(config) {
+                var grid = document.getElementById("source-grid");
+                grid.innerHTML = config.map(function(s) {
+                    return '<a class="card" href="/scene' + s.id + '.html" data-tags="' + s.tags.join(" ") + '">' +
+                        '<img src="/reference/' + s.slug + '/test-actual.png" alt="' + s.name + '" />' +
+                        '<div class="card-body">' +
+                        '<h2>' + s.name +
+                        ' <span class="pg-link" onclick="event.preventDefault();event.stopPropagation();window.open(\'/babylon-ref-scene' + s.id + '.html\',\'_blank\');">\u25b6 BJS Ref</span>' +
+                        '</h2>' +
+                        '<p>' + s.description + '</p>' +
+                        renderBadges(s.tags) +
+                        '</div></a>';
+                }).join("");
+                renderFilterPills("source-filter-pills", "toggleSourceTag");
+            }
+
+            function initBundleGrid(config) {
+                var grid = document.getElementById("bundle-grid");
+                grid.innerHTML = config.map(function(s) {
+                    return '<a class="card" href="/bundle-scene' + s.id + '.html" data-scene="scene' + s.id + '" data-tags="' + s.tags.join(" ") + '">' +
+                        '<img src="/reference/' + s.slug + '/test-actual.png" alt="' + s.name + '" />' +
+                        '<div class="card-body">' +
+                        '<h2>' + s.name +
+                        ' <span class="pg-link" onclick="event.preventDefault();event.stopPropagation();window.open(\'/bundle-bjs-scene' + s.id + '.html\',\'_blank\');">\u25b6 BJS Ref</span>' +
+                        '</h2>' +
+                        '<p>' + s.description + '</p>' +
+                        renderBadges(s.tags) +
+                        '<div class="size-info"></div>' +
+                        '</div></a>';
+                }).join("");
+                renderFilterPills("bundle-filter-pills", "toggleBundleTag");
+            }
+
+            function initPerfGrid(config) {
+                var grid = document.getElementById("perf-grid");
+                grid.innerHTML = config.map(function(s) {
+                    return '<div id="perf-scene' + s.id + '" class="perf-scene-card" data-tags="' + s.tags.join(" ") + '">' +
+                        '<div class="perf-scene-header">' +
+                        '<h3>' + s.name + '</h3>' +
+                        renderBadges(s.tags) +
+                        '</div>' +
+                        '<div class="perf-metrics" id="metrics-' + s.id + '"></div>' +
+                        '</div>';
+                }).join("");
+                renderFilterPills("perf-filter-pills", "togglePerfTag");
+                config.forEach(function(s) { renderMetricsPlaceholder(s.id); });
+            }
+
+            function initParityGrid(config) {
+                var parityScenes = config.map(function(s) {
+                    return {
+                        n: s.id,
+                        name: s.name,
+                        maxMad: s.maxMad,
+                        golden: "/reference/" + s.slug + "/babylon-ref-golden.png",
+                        actual: "/reference/" + s.slug + "/test-actual.png"
+                    };
+                });
+
+                var grid = document.getElementById("parity-grid");
+                grid.innerHTML = parityScenes.map(function (s) {
+                    return (
+                        '<div class="diff-card" id="diff-card-' + s.n + '" data-scene-num="' + s.n + '" data-max-mad="' + s.maxMad + '">' +
+                        '<div class="diff-card-header">' +
+                        "<h3>" + s.name + "</h3>" +
+                        '<span class="diff-stats" id="diff-stats-' + s.n + '">loading\u2026</span>' +
+                        "</div>" +
+                        '<div class="diff-images">' +
+                        '<div class="diff-slot"><div class="diff-slot-label">Babylon.js (target)</div>' +
+                        '<div class="placeholder" id="diff-bjs-' + s.n + '">Loading\u2026</div></div>' +
+                        '<div class="diff-slot"><div class="diff-slot-label">Babylon Lite</div>' +
+                        '<div class="placeholder" id="diff-lite-' + s.n + '">Loading\u2026</div></div>' +
+                        '<div class="diff-slot"><div class="diff-slot-label">Diff (10\u00d7 amplified)</div>' +
+                        '<div class="placeholder" id="diff-img-' + s.n + '">Loading\u2026</div></div>' +
+                        "</div>" +
+                        "</div>"
+                    );
+                }).join("");
+
+                // Load all diffs in parallel
+                var allDiffs = parityScenes.map(function (s) {
+                    return Promise.all([loadImg(s.golden), loadImg(s.actual)]).then(function (imgs) {
+                        var golden = imgs[0],
+                            actual = imgs[1];
+                        var statsEl = document.getElementById("diff-stats-" + s.n);
+                        if (!golden) {
+                            if (statsEl) statsEl.innerHTML = '<span class="fail">golden ref missing \u2014 run BJS reference page</span>';
+                            return;
+                        }
+                        replaceSlot("diff-bjs-" + s.n, golden.cloneNode());
+                        if (!actual) {
+                            if (statsEl) statsEl.innerHTML = '<span class="warn">test-actual.png missing \u2014 run parity tests first</span>';
+                            return;
+                        }
+                        replaceSlot("diff-lite-" + s.n, actual.cloneNode());
+
+                        var result = computeDiff(golden, actual);
+                        replaceSlot("diff-img-" + s.n, result.diffCanvas);
+                        var card = document.getElementById("diff-card-" + s.n);
+                        if (card) {
+                            card.dataset.mad = result.mad.toFixed(4);
+                            card.dataset.redDots = String(result.redDots);
+                        }
+                        if (statsEl) {
+                            var threshold = s.maxMad;
+                            var madClass = result.mad <= threshold ? "pass" : "fail";
+                            var w5Class = result.within5Pct >= 90 ? "pass" : result.within5Pct >= 80 ? "warn" : "fail";
+                            statsEl.innerHTML =
+                                'MAD: <span class="' + madClass + '">' + result.mad.toFixed(2) + " / " + threshold + "</span> \u00b7 " +
+                                'W5: <span class="' + w5Class + '">' + result.within5Pct.toFixed(1) + "%</span>";
+                        }
+                    });
+                });
+                // Re-apply stored sort now that MAD data is available
+                Promise.all(allDiffs).then(function () {
+                    var activeBtn = document.querySelector(".parity-sort-btn.active");
+                    if (activeBtn && activeBtn.dataset.sort !== "num") {
+                        sortParityGrid(activeBtn.dataset.sort, true);
+                    }
+                });
+            }
+
+            // ── Filter & sort state persistence ──
+            var LAB_STATE_KEY = "lab-filter-sort";
+
+            function saveLabState() {
+                var state = {
+                    sourceFilters: activeSourceTags,
+                    bundleFilters: activeBundleTags,
+                    perfFilters: activePerfTags,
+                    paritySort: null,
+                    bundleSort: null,
+                    parityFilterActive: parityFilterActive,
+                    perfFilterActive: perfFilterActive,
+                    pitchSortKey: pitchSortKey,
+                    pitchSortAsc: pitchSortAsc
+                };
+                var activeParityBtn = document.querySelector(".parity-sort-btn.active");
+                if (activeParityBtn) state.paritySort = activeParityBtn.dataset.sort;
+                var activeBundleBtn = document.querySelector(".bundle-sort-btn.active");
+                if (activeBundleBtn) state.bundleSort = activeBundleBtn.dataset.sort;
+                localStorage.setItem(LAB_STATE_KEY, JSON.stringify(state));
+            }
+
+            function restoreLabState() {
+                var raw = localStorage.getItem(LAB_STATE_KEY);
+                if (!raw) return;
+                try { var state = JSON.parse(raw); } catch (e) { return; }
+
+                // Restore source tag filters
+                if (state.sourceFilters) {
+                    activeSourceTags = state.sourceFilters;
+                    document.querySelectorAll("#source-filter-pills .pill-toggle").forEach(function(el) {
+                        el.classList.toggle("active", !!activeSourceTags[el.dataset.filter]);
+                    });
+                    applySourceFilters();
+                }
+                // Restore bundle tag filters
+                if (state.bundleFilters) {
+                    activeBundleTags = state.bundleFilters;
+                    document.querySelectorAll("#bundle-filter-pills .pill-toggle").forEach(function(el) {
+                        el.classList.toggle("active", !!activeBundleTags[el.dataset.filter]);
+                    });
+                    applyBundleFilters();
+                }
+                // Restore perf tag filters
+                if (state.perfFilters) {
+                    activePerfTags = state.perfFilters;
+                    document.querySelectorAll("#perf-filter-pills .pill-toggle").forEach(function(el) {
+                        el.classList.toggle("active", !!activePerfTags[el.dataset.filter]);
+                    });
+                }
+                // Restore perf regression filter toggle
+                if (state.perfFilterActive) {
+                    perfFilterActive = false; // togglePerfFilter will flip it
+                    togglePerfFilter();
+                }
+                applyPerfFilters();
+                // Restore parity sort
+                if (state.paritySort) {
+                    sortParityGrid(state.paritySort, true);
+                }
+                // Restore bundle sort
+                if (state.bundleSort) {
+                    sortBundleGrid(state.bundleSort, true);
+                }
+                // Restore parity failure filter
+                if (state.parityFilterActive) {
+                    parityFilterActive = false; // toggleParityFilter will flip it
+                    toggleParityFilter();
+                }
+                // Restore pitch table sort
+                if (state.pitchSortKey) {
+                    pitchSortKey = state.pitchSortKey;
+                    pitchSortAsc = state.pitchSortAsc;
+                }
+            }
+
+            // ── Tab switching with localStorage persistence + scroll memory ──
+            var _currentTab = "source";
+
+            function activateTab(tabName, restoreScroll) {
+                // Save scroll position of the tab we're leaving
+                if (_currentTab && _currentTab !== tabName) {
+                    localStorage.setItem("lab-scroll-" + _currentTab, String(window.scrollY));
+                }
+                document.querySelectorAll(".tab").forEach(function(t) { t.classList.remove("active"); });
+                document.querySelectorAll(".tab-panel").forEach(function(p) { p.classList.remove("active"); });
+                var tab = document.querySelector('.tab[data-tab="' + tabName + '"]');
+                if (tab) tab.classList.add("active");
+                var panel = document.getElementById("panel-" + tabName);
+                if (panel) panel.classList.add("active");
+                _currentTab = tabName;
+                localStorage.setItem("lab-tab", tabName);
+                // Restore scroll position of the tab we're switching to
+                if (restoreScroll !== false) {
+                    var savedScroll = parseInt(localStorage.getItem("lab-scroll-" + tabName) || "0", 10);
+                    window.scrollTo(0, savedScroll);
+                }
+            }
+
+            // Persist scroll and filter/sort state on navigating away
+            window.addEventListener("beforeunload", function() {
+                localStorage.setItem("lab-scroll-" + _currentTab, String(window.scrollY));
+                saveLabState();
+            });
+
+            document.querySelectorAll(".tab").forEach(function(tab) {
+                tab.addEventListener("click", function() { activateTab(tab.dataset.tab); });
+            });
+
+            var saved = localStorage.getItem("lab-tab");
+            if (saved && document.querySelector('.tab[data-tab="' + saved + '"]')) {
+                activateTab(saved, false);
+            }
+
+            // ── Consolidated config fetch + init ──
+            function loadBundleManifest() {
+                fetch("/bundle/manifest.json")
+                    .then(function(r) { return r.json(); })
+                    .then(function(manifest) {
+                        var bjsCount = 0;
+                        for (var scene in manifest) {
+                            if (!manifest.hasOwnProperty(scene)) continue;
+                            var sizes = manifest[scene];
+                            var card = document.querySelector('[data-scene="' + scene + '"] .size-info');
+                            if (!card) continue;
+                            var html =
+                                '<div class="size-row"><span class="size-label">Lite</span>' +
+                                '<span><span class="size-value">' + sizes.rawKB + '</span> KB min</span>' +
+                                '<span class="size-gzip">' + sizes.gzipKB + ' KB gzip</span></div>';
+                            if (sizes.bjsRawKB != null) {
+                                bjsCount++;
+                                var ratio = (sizes.bjsGzipKB / sizes.gzipKB).toFixed(1);
+                                html +=
+                                    '<div class="size-row"><span class="size-label size-label-bjs">BJS</span>' +
+                                    '<span><span class="size-value">' + sizes.bjsRawKB + '</span> KB min</span>' +
+                                    '<span class="size-gzip">' + sizes.bjsGzipKB + ' KB gzip</span>' +
+                                    '<span class="size-ratio">' + ratio + '\u00d7</span></div>';
+                            }
+                            card.innerHTML = html;
+                            card.closest('.card').dataset.gzipKb = sizes.gzipKB;
+                        }
+                        // Re-apply stored sort now that size data is available
+                        var activeBtn = document.querySelector(".bundle-sort-btn.active");
+                        if (activeBtn && activeBtn.dataset.sort !== "num") {
+                            sortBundleGrid(activeBtn.dataset.sort, true);
+                        }
+                    })
+                    .catch(function() {});
+            }
+
+            function loadPerfManifest() {
+                fetch("/perf-manifest.json")
+                    .then(function(r) { return r.ok ? r.json() : null; })
+                    .then(function(manifest) {
+                        if (!manifest) {
+                            document.getElementById("perf-status").textContent = "No data \u2014 run pnpm test:perf";
+                            return;
+                        }
+                        var count = 0;
+                        for (var key in manifest) {
+                            if (!manifest.hasOwnProperty(key)) continue;
+                            var num = key.replace("scene", "");
+                            renderPerfManifest(num, manifest[key].lite, manifest[key].bjs);
+                            count++;
+                        }
+                        var el = document.getElementById("perf-manifest-status");
+                        if (el) el.textContent = "\ud83d\udcca " + count + " scenes (pnpm test:perf to refresh)";
+                    })
+                    .catch(function() {
+                        document.getElementById("perf-status").textContent = "Failed to load perf-manifest.json";
+                    });
+            }
+
+            fetch("/scene-config.json?t=" + Date.now())
+                .then(function(r) { return r.json(); })
+                .then(function(config) {
+                    window.SCENE_CONFIG = config;
+                    initSourceGrid(config);
+                    initBundleGrid(config);
+                    initPerfGrid(config);
+                    initParityGrid(config);
+                    restoreLabState();
+                    loadBundleManifest();
+                    loadPerfManifest();
+                    // Restore scroll position now that content is rendered
+                    var savedScroll = parseInt(localStorage.getItem("lab-scroll-" + _currentTab) || "0", 10);
+                    requestAnimationFrame(function() { window.scrollTo(0, savedScroll); });
+                })
+                .catch(function() {
+                    console.warn("Failed to load scene-config.json");
+                });
+
+            /** Load an image from URL, return Image or null */
+            function loadImg(url) {
+                return new Promise(function (resolve) {
+                    var img = new Image();
+                    img.crossOrigin = "anonymous";
+                    img.onload = function () { resolve(img); };
+                    img.onerror = function () { resolve(null); };
+                    img.src = url + "?t=" + Date.now();
+                });
+            }
+
+            /** Compute pixel diff between two images */
+            function computeDiff(imgA, imgB) {
+                var w = Math.min(imgA.width, imgB.width);
+                var h = Math.min(imgA.height, imgB.height);
+                var cA = document.createElement("canvas");
+                cA.width = w;
+                cA.height = h;
+                var ctxA = cA.getContext("2d");
+                ctxA.drawImage(imgA, 0, 0, w, h);
+                var dA = ctxA.getImageData(0, 0, w, h).data;
+
+                var cB = document.createElement("canvas");
+                cB.width = w;
+                cB.height = h;
+                var ctxB = cB.getContext("2d");
+                ctxB.drawImage(imgB, 0, 0, w, h);
+                var dB = ctxB.getImageData(0, 0, w, h).data;
+
+                var diffCanvas = document.createElement("canvas");
+                diffCanvas.width = w;
+                diffCanvas.height = h;
+                var dCtx = diffCanvas.getContext("2d");
+                var out = dCtx.createImageData(w, h);
+                var od = out.data;
+
+                var totalDiff = 0,
+                    within5 = 0,
+                    total = w * h,
+                    redDots = 0;
+                for (var i = 0; i < dA.length; i += 4) {
+                    var dr = Math.abs(dA[i] - dB[i]);
+                    var dg = Math.abs(dA[i + 1] - dB[i + 1]);
+                    var db = Math.abs(dA[i + 2] - dB[i + 2]);
+                    var maxD = Math.max(dr, dg, db);
+                    totalDiff += (dr + dg + db) / 3;
+                    if (maxD <= 5) within5++;
+
+                    var amp = Math.min(maxD * 10, 255);
+                    if (maxD <= 5) {
+                        od[i] = 0;
+                        od[i + 1] = 0;
+                        od[i + 2] = 0;
+                    } else if (maxD <= 15) {
+                        od[i] = amp;
+                        od[i + 1] = amp;
+                        od[i + 2] = 0;
+                    } else {
+                        od[i] = 255;
+                        od[i + 1] = 0;
+                        od[i + 2] = 0;
+                        redDots++;
+                    }
+                    od[i + 3] = 255;
+                }
+                dCtx.putImageData(out, 0, 0);
+                return { diffCanvas: diffCanvas, mad: totalDiff / total, within5Pct: (within5 / total) * 100, redDots: redDots };
+            }
+
+            function replaceSlot(containerId, element) {
+                var el = document.getElementById(containerId);
+                if (!el) return;
+                element.id = containerId;
+                element.style.cssText = "width:100%;display:block;aspect-ratio:16/9;object-fit:contain;background:#0d1117;";
+                el.parentNode.replaceChild(element, el);
+            }
+
+            function sortParityGrid(dir, skipSave) {
+                document.querySelectorAll(".parity-sort-btn").forEach(function (b) {
+                    b.classList.toggle("active", b.dataset.sort === dir);
+                });
+                var grid = document.getElementById("parity-grid");
+                var cards = Array.from(grid.children);
+                cards.sort(function (a, b) {
+                    if (dir === "num") return parseInt(a.dataset.sceneNum || "0") - parseInt(b.dataset.sceneNum || "0");
+                    var aMad = parseFloat(a.dataset.mad || "999");
+                    var bMad = parseFloat(b.dataset.mad || "999");
+                    return dir === "asc" ? aMad - bMad : bMad - aMad;
+                });
+                for (var i = 0; i < cards.length; i++) grid.appendChild(cards[i]);
+                if (!skipSave) saveLabState();
+            }
+
+            var parityFilterActive = false;
+            function toggleParityFilter() {
+                parityFilterActive = !parityFilterActive;
+                var btn = document.getElementById("parity-filter-btn");
+                var cards = document.querySelectorAll("#parity-grid .diff-card");
+                if (parityFilterActive) {
+                    btn.style.background = "#3d1117";
+                    btn.style.borderColor = "#f85149";
+                    cards.forEach(function (c) {
+                        var mad = parseFloat(c.dataset.mad || "0");
+                        var maxMad = parseFloat(c.dataset.maxMad || "1");
+                        c.style.display = mad > maxMad ? "" : "none";
+                    });
+                } else {
+                    btn.style.background = "";
+                    btn.style.borderColor = "";
+                    cards.forEach(function (c) {
+                        c.style.display = "";
+                    });
+                }
+                saveLabState();
+            }
+
+            // ── Perf Dashboard helpers ──
+            function renderMetricsPlaceholder(sceneNum) {
+                var el = document.getElementById("metrics-" + sceneNum);
+                if (!el) return;
+                var metrics = ["Init Time (s) \u2193", "Draw Calls \u2193", "RAF CPU Avg (ms) \u2193", "RAF CPU P95 (ms) \u2193", "Memory (MB) \u2193"];
+                el.innerHTML = metrics
+                    .map(function(m) {
+                        return '<div class="metric-group">' +
+                            '<div class="metric-label">' + m + "</div>" +
+                            '<div class="metric-bar-row"><span class="metric-engine engine-lite">Lite</span>' +
+                            '<div class="metric-bar-track"><div class="metric-bar bar-lite" style="width:0"></div></div>' +
+                            '<span class="metric-value metric-placeholder">\u2014</span></div>' +
+                            '<div class="metric-bar-row"><span class="metric-engine engine-bjs">BJS</span>' +
+                            '<div class="metric-bar-track"><div class="metric-bar bar-bjs" style="width:0"></div></div>' +
+                            '<span class="metric-value metric-placeholder">\u2014</span></div>' +
+                            "</div>";
+                    })
+                    .join("");
+            }
+
+            function fmtVal(v) {
+                return v != null ? v : "\u2014";
+            }
+            function r2(v) {
+                return v != null ? Math.round(v * 100) / 100 : null;
+            }
+
+            var PERF_MARGINS = {
+                "Init Time (s) \u2193": 0.05,
+                "Draw Calls \u2193": 0,
+                "RAF CPU Avg (ms) \u2193": 0.02,
+                "RAF CPU P95 (ms) \u2193": 0.1,
+                "Memory (MB) \u2193": 1
+            };
+
+            function renderMetricBars(el, metrics) {
+                el.innerHTML = metrics
+                    .map(function (m) {
+                        var lv = m.lv,
+                            bv = m.bv;
+                        var hasValues = lv != null && bv != null && lv > 0 && bv > 0;
+                        var maxVal = hasValues ? Math.max(lv, bv) : 1;
+                        var lPct = hasValues ? Math.max(2, (lv / maxVal) * 100) : 0;
+                        var bPct = hasValues ? Math.max(2, (bv / maxVal) * 100) : 0;
+
+                        var margin = PERF_MARGINS[m.label] || 0;
+                        var diff = hasValues ? Math.abs(lv - bv) : 0;
+                        var withinMargin = diff <= margin;
+                        var liteWins = hasValues && !withinMargin && (m.higherBetter ? lv > bv : lv < bv);
+                        var bjsWins = hasValues && !withinMargin && (m.higherBetter ? bv > lv : bv < lv);
+                        var liteLoses = bjsWins;
+
+                        return (
+                            '<div class="metric-group">' +
+                            '<div class="metric-label' + (liteLoses ? " regression" : "") + '">' + m.label + "</div>" +
+                            '<div class="metric-bar-row"><span class="metric-engine engine-lite">Lite</span>' +
+                            '<div class="metric-bar-track"><div class="metric-bar bar-lite" style="width:' + lPct + '%"></div></div>' +
+                            '<span class="metric-value' + (liteWins ? " winner" : "") + (liteLoses ? " loser" : "") + '">' + fmtVal(lv) + "</span></div>" +
+                            '<div class="metric-bar-row"><span class="metric-engine engine-bjs">BJS</span>' +
+                            '<div class="metric-bar-track"><div class="metric-bar bar-bjs" style="width:' + bPct + '%"></div></div>' +
+                            '<span class="metric-value' + (bjsWins ? " winner" : "") + '">' + fmtVal(bv) + "</span></div>" +
+                            "</div>"
+                        );
+                    })
+                    .join("");
+            }
+
+            function renderPerfManifest(sceneNum, lite, bjs) {
+                var el = document.getElementById("metrics-" + sceneNum);
+                if (!el) return 0;
+
+                var metricList = [
+                    { label: "Potential FPS \u2191", lv: lite.rafAvgMs > 0 ? r2(1000 / lite.rafAvgMs) : 0, bv: bjs.rafAvgMs > 0 ? r2(1000 / bjs.rafAvgMs) : 0, higherBetter: true },
+                    { label: "Init Time (s) \u2193", lv: r2(lite.initTime), bv: r2(bjs.initTime), higherBetter: false },
+                    { label: "Draw Calls \u2193", lv: lite.drawCalls, bv: bjs.drawCalls, higherBetter: false },
+                    { label: "RAF CPU Avg (ms) \u2193", lv: lite.rafAvgMs, bv: bjs.rafAvgMs, higherBetter: false },
+                    { label: "RAF CPU P95 (ms) \u2193", lv: lite.rafP95Ms, bv: bjs.rafP95Ms, higherBetter: false },
+                    { label: "Memory (MB) \u2193", lv: r2(lite.memoryMB), bv: r2(bjs.memoryMB), higherBetter: false }
+                ];
+
+                renderMetricBars(el, metricList);
+
+                var regressions = 0;
+                metricList.forEach(function (m) {
+                    var hasValues = m.lv != null && m.bv != null && m.lv > 0 && m.bv > 0;
+                    var margin = PERF_MARGINS[m.label] || 0;
+                    var diff = hasValues ? Math.abs(m.lv - m.bv) : 0;
+                    var bjsWins = hasValues && diff > margin && (m.higherBetter ? m.bv > m.lv : m.bv < m.lv);
+                    if (bjsWins) regressions++;
+                });
+
+                var card = document.getElementById("perf-scene" + sceneNum);
+                if (card) card.dataset.regressions = regressions;
+
+                if (card) {
+                    var header = card.querySelector(".perf-scene-header");
+                    header.querySelectorAll(".perf-factor").forEach(function (e) { e.remove(); });
+
+                    var rafLite = lite.rafAvgMs,
+                        rafBjs = bjs.rafAvgMs;
+                    if (rafLite > 0 && rafBjs > 0) {
+                        var speedup = rafBjs / rafLite;
+                        var speedLabel = speedup >= 1 ? "\u26a1 " + speedup.toFixed(1) + "\u00d7 faster" : "\ud83d\udc22 " + (1 / speedup).toFixed(1) + "\u00d7 slower";
+                        var speedCls = speedup > 1.05 ? "perf-factor-good" : speedup < 0.95 ? "perf-factor-bad" : "perf-factor-neutral";
+                        var sp = document.createElement("span");
+                        sp.className = "perf-factor " + speedCls;
+                        sp.textContent = speedLabel;
+                        header.appendChild(sp);
+                    }
+
+                    var memLite = lite.memoryMB,
+                        memBjs = bjs.memoryMB;
+                    if (memLite > 0 && memBjs > 0) {
+                        var saving = ((memBjs - memLite) / memBjs) * 100;
+                        var memLabel, memCls;
+                        if (saving > 1) {
+                            memLabel = "\ud83d\udce6 " + Math.round(saving) + "% smaller";
+                            memCls = "perf-factor-good";
+                        } else if (saving < -1) {
+                            memLabel = "\ud83d\udce6 " + Math.round(-saving) + "% larger";
+                            memCls = "perf-factor-bad";
+                        } else {
+                            memLabel = "\ud83d\udce6 \u2248 same";
+                            memCls = "perf-factor-neutral";
+                        }
+                        var mp = document.createElement("span");
+                        mp.className = "perf-factor " + memCls;
+                        mp.textContent = memLabel;
+                        header.appendChild(mp);
+                    }
+                }
+
+                return regressions;
+            }
+
+            var activeSourceTags = {};
+
+            function applySourceFilters() {
+                var cards = document.querySelectorAll("#source-grid .card");
+                var activeList = Object.keys(activeSourceTags).filter(function (k) { return activeSourceTags[k]; });
+                cards.forEach(function (c) {
+                    if (activeList.length === 0) {
+                        c.style.display = "";
+                        return;
+                    }
+                    var tags = (c.dataset.tags || "").split(" ");
+                    c.style.display = activeList.every(function (t) { return tags.indexOf(t) >= 0; }) ? "" : "none";
+                });
+            }
+
+            function toggleSourceTag(el) {
+                var tag = el.dataset.filter;
+                activeSourceTags[tag] = !activeSourceTags[tag];
+                el.classList.toggle("active", activeSourceTags[tag]);
+                applySourceFilters();
+                saveLabState();
+            }
+
+            var perfFilterActive = false;
+            var activePerfTags = {};
+
+            function applyPerfFilters() {
+                var cards = document.querySelectorAll(".perf-grid .perf-scene-card");
+                var activeList = Object.keys(activePerfTags).filter(function (k) { return activePerfTags[k]; });
+                cards.forEach(function (c) {
+                    var show = true;
+                    if (activeList.length > 0) {
+                        var tags = (c.dataset.tags || "").split(" ");
+                        show = activeList.every(function (t) { return tags.indexOf(t) >= 0; });
+                    }
+                    if (show && perfFilterActive) {
+                        show = parseInt(c.dataset.regressions || "0", 10) > 0;
+                    }
+                    c.style.display = show ? "" : "none";
+                });
+            }
+
+            function togglePerfTag(el) {
+                var tag = el.dataset.filter;
+                activePerfTags[tag] = !activePerfTags[tag];
+                el.classList.toggle("active", activePerfTags[tag]);
+                applyPerfFilters();
+                saveLabState();
+            }
+
+            function togglePerfFilter() {
+                perfFilterActive = !perfFilterActive;
+                var btn = document.getElementById("perf-filter-btn");
+                if (perfFilterActive) {
+                    btn.style.background = "#3d1117";
+                    btn.style.borderColor = "#f85149";
+                } else {
+                    btn.style.background = "";
+                    btn.style.borderColor = "";
+                }
+                applyPerfFilters();
+                saveLabState();
+            }
+
+            var activeBundleTags = {};
+
+            function applyBundleFilters() {
+                var cards = document.querySelectorAll("#bundle-grid > .card");
+                var activeList = Object.keys(activeBundleTags).filter(function (k) { return activeBundleTags[k]; });
+                cards.forEach(function (c) {
+                    var show = true;
+                    if (activeList.length > 0) {
+                        var tags = (c.dataset.tags || "").split(" ");
+                        show = activeList.every(function (t) { return tags.indexOf(t) >= 0; });
+                    }
+                    c.style.display = show ? "" : "none";
+                });
+            }
+
+            function toggleBundleTag(el) {
+                var tag = el.dataset.filter;
+                activeBundleTags[tag] = !activeBundleTags[tag];
+                el.classList.toggle("active", activeBundleTags[tag]);
+                applyBundleFilters();
+                saveLabState();
+            }
+
+            function sortBundleGrid(dir, skipSave) {
+                document.querySelectorAll(".bundle-sort-btn").forEach(function (b) {
+                    b.classList.toggle("active", b.dataset.sort === dir);
+                });
+                var grid = document.getElementById("bundle-grid");
+                var cards = Array.from(grid.children);
+                cards.sort(function (a, b) {
+                    if (dir === "num") {
+                        return parseInt((a.dataset.scene || "").replace("scene", "") || "0") - parseInt((b.dataset.scene || "").replace("scene", "") || "0");
+                    }
+                    var aSize = parseFloat(a.dataset.gzipKb || "999");
+                    var bSize = parseFloat(b.dataset.gzipKb || "999");
+                    return dir === "asc" ? aSize - bSize : bSize - aSize;
+                });
+                for (var i = 0; i < cards.length; i++) grid.appendChild(cards[i]);
+                if (!skipSave) saveLabState();
+            }
+
+            // ── Docs Panel Toggle ──
+            function toggleDocs() {
+                var panel = document.getElementById("docs-panel");
+                var btn = document.getElementById("docs-toggle");
+                var tabs = document.querySelector(".tabs");
+                var activePanel = document.querySelector(".tab-panel.active");
+                var isOpen = panel.classList.toggle("open");
+                btn.classList.toggle("active", isOpen);
+                btn.textContent = isOpen ? "\u2715 Close Docs" : "\ud83d\udcd6 Architecture & Features";
+                tabs.style.display = isOpen ? "none" : "";
+                if (activePanel) activePanel.style.display = isOpen ? "none" : "";
+            }
+
+            function filterFeatures(mode) {
+                var btns = document.querySelectorAll(".feat-filter-btn");
+                btns.forEach(function(b) { b.classList.toggle("active", b.dataset.filter === mode); });
+                var rows = document.querySelectorAll(".feature-table tbody tr");
+                rows.forEach(function(row) {
+                    if (row.classList.contains("feat-cat")) {
+                        row.classList.remove("feat-hidden");
+                        return;
+                    }
+                    if (mode === "all") {
+                        row.classList.remove("feat-hidden");
+                        return;
+                    }
+                    var liteCell = row.cells[1];
+                    if (!liteCell) return;
+                    var val = liteCell.textContent.trim();
+                    var hasLite = val === "\u2705" || val === "\u26a1";
+                    if (mode === "implemented") {
+                        row.classList.toggle("feat-hidden", !hasLite);
+                    } else if (mode === "missing") {
+                        row.classList.toggle("feat-hidden", hasLite);
+                    }
+                });
+                var catRows = document.querySelectorAll(".feature-table tbody tr.feat-cat");
+                catRows.forEach(function(cat) {
+                    var next = cat.nextElementSibling;
+                    var hasVisible = false;
+                    while (next && !next.classList.contains("feat-cat")) {
+                        if (!next.classList.contains("feat-hidden")) hasVisible = true;
+                        next = next.nextElementSibling;
+                    }
+                    cat.classList.toggle("feat-hidden", !hasVisible);
+                });
+            }
+
+            // ── Pitch Panel Toggle ──
+            function togglePitch() {
+                var panel = document.getElementById("pitch-panel");
+                var btn = document.getElementById("pitch-toggle");
+                var docsPanel = document.getElementById("docs-panel");
+                var docsBtn = document.getElementById("docs-toggle");
+                var tabs = document.querySelector(".tabs");
+                var activePanel = document.querySelector(".tab-panel.active");
+                if (docsPanel.classList.contains("open")) {
+                    docsPanel.classList.remove("open");
+                    docsBtn.classList.remove("active");
+                    docsBtn.textContent = "\ud83d\udcd6 Architecture & Features";
+                }
+                var isOpen = panel.classList.toggle("open");
+                btn.classList.toggle("active", isOpen);
+                btn.textContent = isOpen ? "\u2715 Close Summary" : "\ud83d\udcca Performance Summary";
+                tabs.style.display = isOpen ? "none" : "";
+                if (activePanel) activePanel.style.display = isOpen ? "none" : "";
+                if (isOpen && !panel.dataset.loaded) {
+                    loadPitchData();
+                    panel.dataset.loaded = "1";
+                }
+            }
+
+            var _origToggleDocs = toggleDocs;
+            toggleDocs = function() {
+                var pitchPanel = document.getElementById("pitch-panel");
+                var pitchBtn = document.getElementById("pitch-toggle");
+                if (pitchPanel.classList.contains("open")) {
+                    pitchPanel.classList.remove("open");
+                    pitchBtn.classList.remove("active");
+                    pitchBtn.textContent = "\ud83d\udcca Performance Summary";
+                }
+                _origToggleDocs();
+            };
+
+            var pitchRowData = [];
+            var pitchSortKey = "sceneNum";
+            var pitchSortAsc = true;
+
+            function pitchThumbSrc(sceneNum) {
+                var img = document.querySelector('.card[href="/scene' + sceneNum + '.html"] img');
+                if (img) return img.getAttribute("src");
+                return "/thumbnails/scene" + sceneNum + ".png";
+            }
+
+            function renderPitchTable(data) {
+                var rows = data.map(function(d) {
+                    return "<tr>" +
+                        "<td><img class='pitch-thumb' src='" + pitchThumbSrc(d.sceneNum) + "' alt='Scene " + d.sceneNum + "' /></td>" +
+                        "<td>Scene " + d.sceneNum + "</td>" +
+                        "<td>" + d.liteKB.toFixed(1) + " KB</td>" +
+                        "<td>" + (d.bjsKB > 0 ? d.bjsKB.toFixed(0) + " KB" : "\u2014") + "</td>" +
+                        "<td style='color:#3fb950;font-weight:600'>" + (d.ratio > 0 ? d.ratio.toFixed(0) + "\u00d7 smaller" : "") + "</td>" +
+                        "<td>" + (d.liteRaf > 0 ? d.liteRaf.toFixed(3) + " ms" : "") + "</td>" +
+                        "<td>" + (d.bjsRaf > 0 ? d.bjsRaf.toFixed(3) + " ms" : "") + "</td>" +
+                        "<td style='color:#3fb950;font-weight:600'>" + (d.speedup > 0 ? d.speedup.toFixed(1) + "\u00d7" : "") + "</td>" +
+                        "<td>" + (d.liteMem > 0 ? d.liteMem.toFixed(0) + " MB" : "") + "</td>" +
+                        "<td>" + (d.bjsMem > 0 ? d.bjsMem.toFixed(0) + " MB" : "") + "</td>" +
+                        "<td style='color:#3fb950;font-weight:600'>" + (d.memSave > 0 ? "\u2212" + d.memSave.toFixed(0) + "%" : "") + "</td>" +
+                        "</tr>";
+                });
+                document.getElementById("pitch-table-body").innerHTML = rows.join("");
+            }
+
+            function sortPitchTable(key) {
+                if (pitchSortKey === key) {
+                    pitchSortAsc = !pitchSortAsc;
+                } else {
+                    pitchSortKey = key;
+                    pitchSortAsc = key === "sceneNum";
+                }
+                var sorted = pitchRowData.slice().sort(function(a, b) {
+                    var va = a[key] || 0, vb = b[key] || 0;
+                    return pitchSortAsc ? va - vb : vb - va;
+                });
+                renderPitchTable(sorted);
+                var ths = document.querySelectorAll("#pitch-table th[data-sort-key]");
+                for (var i = 0; i < ths.length; i++) {
+                    ths[i].classList.remove("sort-asc", "sort-desc");
+                    if (ths[i].getAttribute("data-sort-key") === key) {
+                        ths[i].classList.add(pitchSortAsc ? "sort-asc" : "sort-desc");
+                    }
+                }
+                saveLabState();
+            }
+
+            document.querySelectorAll("#pitch-table th[data-sort-key]").forEach(function(th) {
+                th.addEventListener("click", function() {
+                    sortPitchTable(th.getAttribute("data-sort-key"));
+                });
+            });
+
+            function loadPitchData() {
+                Promise.all([
+                    fetch("/bundle/manifest.json").then(function(r) { return r.json(); }),
+                    fetch("/perf-manifest.json").then(function(r) { return r.json(); })
+                ]).then(function(results) {
+                    var bundle = results[0];
+                    var perf = results[1];
+                    var sceneNames = Object.keys(bundle).filter(function(k) { return k.startsWith("scene"); })
+                        .sort(function(a, b) { return parseInt(a.replace("scene","")) - parseInt(b.replace("scene","")); });
+
+                    var totalLiteKB = 0, totalBjsKB = 0;
+                    var totalLiteRaf = 0, totalBjsRaf = 0, rafCount = 0;
+                    var totalLiteMem = 0, totalBjsMem = 0, memCount = 0;
+                    var totalLiteInit = 0, totalBjsInit = 0, initCount = 0;
+
+                    pitchRowData = [];
+                    sceneNames.forEach(function(name) {
+                        var b = bundle[name];
+                        var p = perf[name];
+                        var liteKB = b.rawKB || 0;
+                        var bjsKB = b.bjsRawKB || 0;
+                        totalLiteKB += liteKB;
+                        if (bjsKB > 0) totalBjsKB += bjsKB;
+
+                        var liteRaf = 0, bjsRaf = 0, speedup = 0;
+                        var liteMem = 0, bjsMem = 0, memSave = 0;
+                        if (p && p.lite && p.bjs) {
+                            liteRaf = p.lite.rafAvgMs;
+                            bjsRaf = p.bjs.rafAvgMs;
+                            totalLiteRaf += liteRaf; totalBjsRaf += bjsRaf; rafCount++;
+                            speedup = bjsRaf / liteRaf;
+                            liteMem = p.lite.memoryMB;
+                            bjsMem = p.bjs.memoryMB;
+                            totalLiteMem += liteMem; totalBjsMem += bjsMem; memCount++;
+                            totalLiteInit += p.lite.initTime; totalBjsInit += p.bjs.initTime; initCount++;
+                            memSave = (1 - p.lite.memoryMB / p.bjs.memoryMB) * 100;
+                        }
+
+                        var ratio = bjsKB > 0 ? bjsKB / liteKB : 0;
+                        var num = parseInt(name.replace("scene", ""));
+                        pitchRowData.push({
+                            sceneNum: num, liteKB: liteKB, bjsKB: bjsKB, ratio: ratio,
+                            liteRaf: liteRaf, bjsRaf: bjsRaf, speedup: speedup,
+                            liteMem: liteMem, bjsMem: bjsMem, memSave: memSave
+                        });
+                    });
+
+                    renderPitchTable(pitchRowData);
+                    // Apply restored pitch sort or default
+                    if (pitchSortKey !== "sceneNum" || !pitchSortAsc) {
+                        var sorted = pitchRowData.slice().sort(function(a, b) {
+                            var va = a[pitchSortKey] || 0, vb = b[pitchSortKey] || 0;
+                            return pitchSortAsc ? va - vb : vb - va;
+                        });
+                        renderPitchTable(sorted);
+                        var ths = document.querySelectorAll("#pitch-table th[data-sort-key]");
+                        for (var i = 0; i < ths.length; i++) {
+                            ths[i].classList.remove("sort-asc", "sort-desc");
+                            if (ths[i].getAttribute("data-sort-key") === pitchSortKey) {
+                                ths[i].classList.add(pitchSortAsc ? "sort-asc" : "sort-desc");
+                            }
+                        }
+                    } else {
+                        var defaultTh = document.querySelector('#pitch-table th[data-sort-key="sceneNum"]');
+                        if (defaultTh) defaultTh.classList.add("sort-asc");
+                    }
+
+                    var avgBundleRatio = totalBjsKB > 0 ? (totalBjsKB / totalLiteKB).toFixed(0) : "\u2014";
+                    var avgRafSpeedup = rafCount > 0 ? (totalBjsRaf / totalLiteRaf).toFixed(1) : "\u2014";
+                    var avgMemSave = memCount > 0 ? ((1 - totalLiteMem / totalBjsMem) * 100).toFixed(0) : "\u2014";
+                    var avgInitSpeedup = initCount > 0 ? (totalBjsInit / totalLiteInit).toFixed(1) : "\u2014";
+
+                    var cards = [
+                        { icon: "\ud83d\udce6", value: avgBundleRatio + "\u00d7", label: "Smaller Bundles", sub: "Avg " + (totalLiteKB / sceneNames.length).toFixed(0) + " KB vs " + (totalBjsKB / sceneNames.length).toFixed(0) + " KB" },
+                        { icon: "\u26a1", value: avgRafSpeedup + "\u00d7", label: "Faster Rendering", sub: "Avg RAF " + (totalLiteRaf / rafCount).toFixed(3) + " ms vs " + (totalBjsRaf / rafCount).toFixed(3) + " ms" },
+                        { icon: "\ud83e\udde0", value: "\u2212" + avgMemSave + "%", label: "Less Memory", sub: "Avg " + (totalLiteMem / memCount).toFixed(0) + " MB vs " + (totalBjsMem / memCount).toFixed(0) + " MB" },
+                        { icon: "\ud83d\ude80", value: avgInitSpeedup + "\u00d7", label: "Faster Startup", sub: "Avg " + (totalLiteInit / initCount).toFixed(2) + "s vs " + (totalBjsInit / initCount).toFixed(2) + "s" }
+                    ];
+
+                    document.getElementById("pitch-cards").innerHTML = cards.map(function(c) {
+                        return '<div class="pitch-card">' +
+                            '<div class="pitch-card-icon">' + c.icon + '</div>' +
+                            '<div class="pitch-card-value">' + c.value + '</div>' +
+                            '<div class="pitch-card-label">' + c.label + '</div>' +
+                            '<div class="pitch-card-sub">' + c.sub + '</div>' +
+                            '</div>';
+                    }).join("");
+                });
+            }
+        </script>
+
+        <!-- Fullscreen lightbox for parity diff images -->
+        <div class="lightbox-overlay" id="lightbox">
+            <button class="lightbox-close" id="lightbox-close" title="Close (Esc)">✕</button>
+            <div class="lightbox-label" id="lightbox-label"></div>
+            <div id="lightbox-content"></div>
+            <div class="lightbox-nav-bar">
+                <button class="lightbox-nav" id="lightbox-prev" title="Previous (←)">‹</button>
+                <button class="lightbox-nav" id="lightbox-next" title="Next (→)">›</button>
+                <button class="lightbox-save" id="lightbox-save" title="Save image (S)">⤓ Save</button>
+            </div>
+            <div class="lightbox-hint">← → to navigate · S to save · Esc to close</div>
+        </div>
+
+        <script>
+            // ── Lightbox for parity diff images ──
+            (function initLightbox() {
+                var overlay = document.getElementById("lightbox");
+                var content = document.getElementById("lightbox-content");
+                var label = document.getElementById("lightbox-label");
+                var btnPrev = document.getElementById("lightbox-prev");
+                var btnNext = document.getElementById("lightbox-next");
+
+                // Current navigation state
+                var currentSlots = []; // array of .diff-slot elements in the active card
+                var currentIndex = -1;
+                var currentSceneName = "";
+
+                function showSlot(index) {
+                    if (index < 0 || index >= currentSlots.length) return;
+                    currentIndex = index;
+                    var slot = currentSlots[index];
+                    var el = slot.querySelector("img") || slot.querySelector("canvas");
+                    if (!el) return;
+
+                    content.innerHTML = "";
+                    var slotLabel = slot.querySelector(".diff-slot-label");
+                    label.textContent = currentSceneName + (slotLabel ? " — " + slotLabel.textContent : "");
+
+                    if (el.tagName === "CANVAS") {
+                        var img = new Image();
+                        img.src = el.toDataURL();
+                        content.appendChild(img);
+                    } else {
+                        var clone = el.cloneNode(true);
+                        clone.removeAttribute("id");
+                        clone.style.cssText = "";
+                        content.appendChild(clone);
+                    }
+                }
+
+                function navigate(delta) {
+                    if (currentSlots.length === 0) return;
+                    var next = (currentIndex + delta + currentSlots.length) % currentSlots.length;
+                    showSlot(next);
+                }
+
+                function openLightbox(slotElement, sceneName) {
+                    var card = slotElement.closest(".diff-card");
+                    if (!card) return;
+                    currentSlots = Array.prototype.slice.call(card.querySelectorAll(".diff-slot"));
+                    currentSceneName = sceneName;
+                    currentIndex = currentSlots.indexOf(slotElement);
+                    if (currentIndex === -1) currentIndex = 0;
+
+                    overlay.classList.add("open");
+                    document.body.style.overflow = "hidden";
+                    showSlot(currentIndex);
+                }
+
+                function closeLightbox() {
+                    overlay.classList.remove("open");
+                    content.innerHTML = "";
+                    document.body.style.overflow = "";
+                    currentSlots = [];
+                    currentIndex = -1;
+                }
+
+                function saveCurrentImage() {
+                    var img = content.querySelector("img");
+                    if (!img) return;
+                    var a = document.createElement("a");
+                    // Build a filename from the label text
+                    var name = label.textContent
+                        .replace(/[^a-zA-Z0-9]+/g, "-")
+                        .replace(/^-|-$/g, "")
+                        .toLowerCase();
+                    a.download = (name || "parity-image") + ".png";
+                    a.href = img.src;
+                    a.click();
+                }
+
+                var btnSave = document.getElementById("lightbox-save");
+
+                btnPrev.addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    navigate(-1);
+                });
+                btnNext.addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    navigate(1);
+                });
+                btnSave.addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    saveCurrentImage();
+                });
+
+                overlay.addEventListener("click", function (e) {
+                    if (e.target === overlay) closeLightbox();
+                });
+                document.getElementById("lightbox-close").addEventListener("click", closeLightbox);
+                document.addEventListener("keydown", function (e) {
+                    if (!overlay.classList.contains("open")) return;
+                    if (e.key === "Escape") closeLightbox();
+                    else if (e.key === "ArrowLeft") navigate(-1);
+                    else if (e.key === "ArrowRight") navigate(1);
+                    else if (e.key === "s" || e.key === "S") saveCurrentImage();
+                });
+
+                // Delegate clicks on diff-slot images/canvases
+                document.getElementById("parity-grid").addEventListener("click", function (e) {
+                    var target = e.target;
+                    if (target.tagName !== "IMG" && target.tagName !== "CANVAS") return;
+                    var slot = target.closest(".diff-slot");
+                    if (!slot) return;
+                    var cardHeader = target.closest(".diff-card");
+                    var sceneName = cardHeader ? cardHeader.querySelector("h3").textContent : "";
+                    openLightbox(slot, sceneName);
+                });
+            })();
+        </script>
+    </body>
+</html>

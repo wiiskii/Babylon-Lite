@@ -1,0 +1,217 @@
+# Module: Scene
+> Package path: `packages/babylon-lite/src/scene/scene.ts`
+
+## Purpose
+
+The Scene module defines `SceneContext` — the central, flat data container for all rendering state. It follows a strict one-way ownership model with no circular references: the scene holds references to the engine, camera, lights, and meshes, but none of those reference the scene back. The scene is material-agnostic — it delegates all pipeline/bind-group creation to material-owned builders via the `_buildGroup` pattern. It also provides `createDefaultCamera()` which computes an ArcRotateCamera auto-framed around loaded meshes' bounding boxes.
+
+## Public API Surface
+
+```typescript
+/** Union of all supported light types. */
+export type SceneAnyLight = HemisphericLight | DirectionalLight | PointLight;
+
+/** Image processing configuration. */
+export interface ImageProcessingConfig {
+  exposure: number;
+  contrast: number;
+  toneMappingEnabled: boolean;
+}
+
+/** Top-level scene context — flat struct, no deep hierarchy. */
+export interface SceneContext {
+  readonly engine: Engine;
+  clearColor: GPUColorDict;
+  camera: ArcRotateCamera | null;
+  lights: SceneAnyLight[];
+  imageProcessing: ImageProcessingConfig;
+
+  /** All meshes (standard, PBR, or any future material type). */
+  meshes: Mesh[];
+
+  /** Animation groups (one per glTF animation clip). */
+  animationGroups: AnimationGroup[];
+
+  fog: FogConfig | null;
+  shadowGenerators: ShadowGenerator[];
+
+  /** Background material primaryColor (linear RGB). */
+  environmentPrimaryColor?: [number, number, number];
+
+  /** Internal renderable lists — populated by material builders. */
+  _renderables: Renderable[];
+  _prePasses: PrePassRenderable[];
+  _uniformUpdaters: SceneUniformUpdater[];
+
+  /** Fixed timestep for animation ticks (ms). */
+  _fixedDeltaMs: number;
+
+  /** Per-frame callbacks invoked before rendering. */
+  _beforeRender: ((deltaMs: number) => void)[];
+
+  /** Deferred builder functions; may be async. Run once at _build() time. */
+  _deferredBuilders: (() => void | Promise<void>)[];
+
+  /** Run all deferred builders and prepare the scene for rendering. */
+  _build(): Promise<void>;
+
+  /** Add an entity to the scene. Auto-routes by type. */
+  add(entity: Mesh | SceneAnyLight | ShadowGenerator): void;
+}
+
+/** Create an empty scene context bound to the given engine. */
+export function createSceneContext(engine: Engine): SceneContext;
+
+/** Create an ArcRotateCamera framed to fit all loaded meshes, assign it to scene. */
+export function createDefaultCamera(scene: SceneContext): ArcRotateCamera;
+```
+
+## Internal Architecture
+
+### SceneContext — Flat Data Struct
+
+`createSceneContext(engine)` returns a plain object with these defaults:
+
+| Field | Default | Description |
+|---|---|---|
+| `engine` | passed in | Immutable reference to Engine |
+| `clearColor` | `{ r: 0.2, g: 0.2, b: 0.3, a: 1.0 }` | Render pass clear color |
+| `camera` | `null` | Set later by `createDefaultCamera` |
+| `lights` | `[]` | Hemispheric/directional/point lights |
+| `meshes` | `[]` | All meshes (standard, PBR, etc.) |
+| `animationGroups` | `[]` | Animation groups from glTF clips |
+| `fog` | `null` | Fog configuration (null = disabled) |
+| `shadowGenerators` | `[]` | Shadow generators |
+| `imageProcessing` | `{ exposure: 1.0, contrast: 1.0, toneMappingEnabled: false }` | Image processing params |
+| `_renderables` | `[]` | Draw-call entities (sorted by `order` at start) |
+| `_prePasses` | `[]` | Pre-pass entities (shadow depth, compute) |
+| `_uniformUpdaters` | `[]` | Per-frame UBO updaters |
+| `_fixedDeltaMs` | `0` | Fixed timestep for animation (ms) |
+| `_beforeRender` | `[]` | Pre-render callbacks `(deltaMs) => void` |
+| `_deferredBuilders` | `[]` | Async-capable builders run once at `_build()` |
+
+### Design Principle: One-Way Ownership
+
+```
+Engine ← SceneContext → Camera
+                      → Lights[]
+                      → Meshes[]
+                      → AnimationGroups[]
+                      → ShadowGenerators[]
+                      → _renderables[]
+                      → _prePasses[]
+                      → _uniformUpdaters[]
+                      → _beforeRender[]
+```
+
+No child objects reference the scene. The engine iterates the renderable arrays as opaque contracts.
+
+### `scene.add()` — Entity Routing
+
+`add(entity)` inspects the entity and routes it to the correct collection:
+
+```typescript
+add(entity: Mesh | SceneAnyLight | ShadowGenerator) {
+  if ('renderShadowMap' in entity) {
+    // ShadowGenerator → shadowGenerators + _prePasses
+    this.shadowGenerators.push(entity);
+    this._prePasses.push({ execute: entity.renderShadowMap });
+  } else if ('_gpu' in entity && 'material' in entity) {
+    // Mesh → meshes + register material builder (deduped by builder identity)
+    this.meshes.push(entity);
+    const builder = entity.material._buildGroup;
+    if (builder && !_groups.has(builder)) {
+      _groups.set(builder, []);
+      this._deferredBuilders.push(() => builder(this, _groups.get(builder)!));
+    }
+    _groups.get(builder)?.push(entity);
+  } else {
+    // Light → lights
+    this.lights.push(entity);
+  }
+}
+```
+
+The scene never branches on material type (PBR vs standard). Materials self-describe their builder via `material._buildGroup`, and the scene groups meshes by builder identity using an internal `Map<MeshGroupBuilder, Mesh[]>`. Each unique builder is registered as a deferred builder exactly once.
+
+### Deferred Building & `_buildGroup` Pattern
+
+Materials carry a `_buildGroup: MeshGroupBuilder` function that knows how to create GPU pipelines, bind groups, and renderables for a batch of meshes sharing that material type. The flow:
+
+1. `scene.add(mesh)` groups the mesh by its `material._buildGroup` identity.
+2. If this is the first mesh for a given builder, a deferred builder is registered.
+3. At `_build()` time (called by `engine.start()`), each deferred builder runs once with the full batch of meshes for that group.
+4. Builders return `{ renderables, updater }` which are pushed onto `_renderables` and `_uniformUpdaters`.
+
+`_build()` is async — deferred builders may return `Promise<void>` for GPU resource creation.
+
+This decouples scene setup from GPU resource creation, ensures all assets are loaded before pipelines are built, and keeps scene.ts entirely material-agnostic.
+
+### Hidden State (accessed via `(scene as any)`)
+
+| Property | Set by | Type | Purpose |
+|---|---|---|---|
+| `_envTextures` | `loadEnvironment()` | `EnvironmentTextures` | IBL cubemap + BRDF LUT |
+| `_pbrSceneBGL` | PBR builder | `GPUBindGroupLayout` | PBR scene BGL for background reuse |
+| `_pbrSceneBG` | PBR builder | `GPUBindGroup` | PBR scene bind group for background reuse |
+
+> **Removed**: `_gpuMeshes` and the `GpuMesh` type no longer exist. Meshes carry their GPU data in `mesh._gpu` and their bounding boxes in `mesh.boundMin`/`mesh.boundMax` directly.
+
+### Auto-Framing Camera (`createDefaultCamera`)
+
+Algorithm:
+
+1. Read `scene.meshes` (may be empty).
+2. Compute world-space AABB across all meshes by iterating `boundMin`/`boundMax` on each `Mesh`.
+3. Compute diagonal: `diag = √(sx² + sy² + sz²)` where `sx = maxX - minX`, etc.
+4. Radius = `diag * 1.5` (Babylon formula).
+5. Center = midpoint of AABB.
+6. If radius is 0 or non-finite: radius = 1, center = (0,0,0).
+7. Create camera: `alpha = -π/2`, `beta = π/2`, `radius`, `target = center`.
+8. Set `minZ = radius * 0.01`, `maxZ = radius * 1000`.
+9. Assign `scene.camera = cam`.
+
+## Babylon.js Equivalence Map
+
+| Babylon Lite | Babylon.js |
+|---|---|
+| `createSceneContext(engine)` | `new BABYLON.Scene(engine)` |
+| `scene.clearColor` | `scene.clearColor` |
+| `scene.camera` | `scene.activeCamera` |
+| `scene.lights` | `scene.lights` |
+| `scene.meshes` | `scene.meshes` |
+| `scene.animationGroups` | `scene.animationGroups` |
+| `scene.add(entity)` | `scene.addMesh()` / `scene.addLight()` (depending on entity type) |
+| `scene._renderables` | `scene._renderingManager._renderingGroups` |
+| `scene._prePasses` | `scene.onBeforeRenderObservable` handlers |
+| `scene._beforeRender` | `scene.onBeforeRenderObservable` |
+| `scene._uniformUpdaters` | Internal UBO update during `scene.render()` |
+| `scene._deferredBuilders` | `scene._prepareFrame()` lazy compilation |
+| `scene.imageProcessing` | `scene.imageProcessingConfiguration` |
+| `createDefaultCamera(scene)` | `scene.createDefaultCameraOrLight(true, true, true)` |
+| `scene.environmentPrimaryColor` | `env.groundMaterial.primaryColor` |
+
+## Dependencies
+
+- **Imports**: `Engine` from `../engine/engine.js`, `ArcRotateCamera` + `createArcRotateCamera` from `../camera/arc-rotate.js`, `vec3` from `../math/vec3.js`, `Renderable`/`PrePassRenderable`/`SceneUniformUpdater`/`MeshGroupBuilder` from `../render/renderable.js`, `Mesh` from `../mesh/mesh.js` (type-only), `AnimationGroup` from `../animation/animation-group.js` (type-only).
+- **Depended on by**: `engine.ts`, all material renderables, all loaders.
+
+## Test Specification
+
+| Test | Description |
+|---|---|
+| `createSceneContext returns valid defaults` | Verify all fields match documented defaults |
+| `scene.add routes mesh` | Add Mesh → appears in `meshes`, builder registered in `_deferredBuilders` |
+| `scene.add routes light` | Add light → appears in `lights` |
+| `scene.add routes shadow generator` | Add ShadowGenerator → appears in `shadowGenerators` + `_prePasses` |
+| `scene.add deduplicates builders` | Two meshes with same `_buildGroup` → one deferred builder |
+| `createDefaultCamera with meshes` | Provide meshes with known bounds, verify radius = diag*1.5 |
+| `createDefaultCamera with no meshes` | radius=1, center=(0,0,0) |
+| `deferred builders run at _build()` | Register builder → verify called by `_build()` |
+| `_build() awaits async builders` | Register async builder → verify awaited |
+
+## File Manifest
+
+| File | Size | Purpose |
+|---|---|---|
+| `src/scene/scene.ts` | ~150 lines | SceneContext interface, factory, entity routing, auto-framing camera |

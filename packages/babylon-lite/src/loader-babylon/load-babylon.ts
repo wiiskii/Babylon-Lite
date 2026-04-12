@@ -1,0 +1,427 @@
+/**
+ * .babylon format loader — parses Babylon.js .babylon scene files.
+ *
+ * Supports:
+ * - Standard materials with diffuse, bump, specular, ambient, lightmap, opacity textures
+ * - Inline vertex data (positions, normals, UVs, indices)
+ * - Point lights
+ * - Scene clear color
+ * - SubMesh → multi-material handling
+ */
+
+import type { SceneContext, SceneContextInternal } from "../scene/scene.js";
+import type { EngineInternal } from "../engine/engine.js";
+import { createStandardMaterial } from "../material/standard/standard-material.js";
+import type { StandardMaterialProps } from "../material/standard/standard-material.js";
+import { uploadMeshToGPU, initMeshTransform } from "../mesh/mesh.js";
+import type { MeshInternal } from "../mesh/mesh.js";
+import { createPointLight } from "../light/point-light.js";
+import { loadTexture2D, clearTexture2DCache } from "../texture/texture-2d.js";
+
+// ─── .babylon JSON Types ───────────────────────────────────────────
+
+interface BabylonScene {
+    clearColor?: number[];
+    ambientColor?: number[];
+    cameras?: BabylonCamera[];
+    lights?: BabylonLight[];
+    materials?: BabylonMaterial[];
+    multiMaterials?: BabylonMultiMaterial[];
+    meshes?: BabylonMesh[];
+    activeCameraID?: string;
+}
+
+interface BabylonCamera {
+    name: string;
+    id: string;
+    type: string;
+    position: number[];
+    rotation?: number[];
+    target?: number[];
+    fov?: number;
+    minZ?: number;
+    maxZ?: number;
+}
+
+interface BabylonTexture {
+    name: string;
+    hasAlpha?: boolean;
+    getAlphaFromRGB?: boolean;
+    level?: number;
+    coordinatesIndex?: number;
+    coordinatesMode?: number;
+    uOffset?: number;
+    vOffset?: number;
+    uScale?: number;
+    vScale?: number;
+}
+
+interface BabylonMaterial {
+    name: string;
+    id: string;
+    diffuse?: number[];
+    specular?: number[];
+    specularPower?: number;
+    emissive?: number[];
+    ambient?: number[];
+    alpha?: number;
+    alphaCutOff?: number;
+    diffuseTexture?: BabylonTexture | null;
+    bumpTexture?: BabylonTexture | null;
+    specularTexture?: BabylonTexture | null;
+    ambientTexture?: BabylonTexture | null;
+    lightmapTexture?: BabylonTexture | null;
+    emissiveTexture?: BabylonTexture | null;
+    opacityTexture?: BabylonTexture | null;
+    reflectionTexture?: BabylonTexture | null;
+    backFaceCulling?: boolean;
+}
+
+interface BabylonMultiMaterial {
+    name: string;
+    id: string;
+    materials: string[];
+}
+
+interface BabylonSubMesh {
+    materialIndex: number;
+    verticesStart: number;
+    verticesCount: number;
+    indexStart: number;
+    indexCount: number;
+}
+
+interface BabylonMesh {
+    name: string;
+    id: string;
+    parentId?: string | null;
+    materialId?: string | null;
+    position?: number[];
+    rotation?: number[];
+    scaling?: number[];
+    positions?: number[];
+    normals?: number[];
+    uvs?: number[];
+    uvs2?: number[];
+    indices?: number[];
+    subMeshes?: BabylonSubMesh[];
+    isVisible?: boolean;
+}
+
+interface BabylonLight {
+    name: string;
+    id: string;
+    type: number;
+    position?: number[];
+    direction?: number[];
+    diffuse?: number[];
+    specular?: number[];
+    intensity?: number;
+    range?: number;
+    excludedMeshesIds?: string[];
+    includedOnlyMeshesIds?: string[];
+}
+
+// ─── Public API ─────────────────────────────────────────────────────
+
+export interface LoadBabylonOptions {
+    /** Maximum number of meshes to load. Default: all. */
+    maxMeshes?: number;
+    /** Whether to load textures. Default: true. */
+    loadTextures?: boolean;
+}
+
+/**
+ * Load a .babylon scene file and add its contents to a SceneContext.
+ *
+ * @param scene - The scene context to populate
+ * @param url - URL to the .babylon file
+ * @param opts - Optional loader configuration
+ */
+export async function loadBabylon(scene: SceneContext, url: string, opts: LoadBabylonOptions = {}): Promise<void> {
+    const device = (scene.engine as EngineInternal).device;
+    const baseUrl = url.substring(0, url.lastIndexOf("/") + 1);
+    (scene as SceneContextInternal)._disposables.push(() => clearTexture2DCache(device));
+
+    const response = await fetch(url);
+    const data: BabylonScene = await response.json();
+
+    // Scene-level settings
+    if (data.clearColor) {
+        scene.clearColor = {
+            r: data.clearColor[0]!,
+            g: data.clearColor[1]!,
+            b: data.clearColor[2]!,
+            a: 1,
+        };
+    }
+
+    // Scene ambient color — BJS multiplies material.ambient by scene.ambientColor
+    const sceneAmbient: [number, number, number] = data.ambientColor ? [data.ambientColor[0]!, data.ambientColor[1]!, data.ambientColor[2]!] : [0, 0, 0];
+
+    // Build material map
+    const materialMap = new Map<string, StandardMaterialProps>();
+    const texturePromises: Promise<void>[] = [];
+
+    if (data.materials) {
+        for (const md of data.materials) {
+            const mat = createStandardMaterial();
+            if (md.diffuse) {
+                mat.diffuseColor = [md.diffuse[0]!, md.diffuse[1]!, md.diffuse[2]!];
+            }
+            if (md.specular) {
+                mat.specularColor = [md.specular[0]!, md.specular[1]!, md.specular[2]!];
+            }
+            if (md.specularPower != null) {
+                mat.specularPower = md.specularPower;
+            }
+            if (md.emissive) {
+                mat.emissiveColor = [md.emissive[0]!, md.emissive[1]!, md.emissive[2]!];
+            }
+            if (md.ambient) {
+                mat.ambientColor = [md.ambient[0]! * sceneAmbient[0], md.ambient[1]! * sceneAmbient[1], md.ambient[2]! * sceneAmbient[2]];
+            }
+            if (md.alpha != null) {
+                mat.alpha = md.alpha;
+            }
+            if (md.alphaCutOff != null) {
+                mat.alphaCutOff = md.alphaCutOff;
+            }
+            if (md.backFaceCulling === false) {
+                mat.backFaceCulling = false;
+            }
+
+            if (md.diffuseTexture && opts.loadTextures !== false) {
+                const texUrl = baseUrl + md.diffuseTexture.name;
+                mat.uvScale = [md.diffuseTexture.uScale ?? 1, md.diffuseTexture.vScale ?? 1];
+                if (md.diffuseTexture.coordinatesIndex === 1) {
+                    mat.diffuseCoordIndex = 1;
+                }
+                texturePromises.push(
+                    loadTexture2D(scene.engine, texUrl).then((tex) => {
+                        mat.diffuseTexture = tex;
+                    })
+                );
+            }
+
+            if (md.bumpTexture && opts.loadTextures !== false) {
+                const texUrl = baseUrl + md.bumpTexture.name;
+                if (md.bumpTexture.level != null) {
+                    mat.bumpLevel = md.bumpTexture.level;
+                }
+                texturePromises.push(
+                    loadTexture2D(scene.engine, texUrl).then((tex) => {
+                        mat.bumpTexture = tex;
+                    })
+                );
+            }
+
+            if (md.specularTexture && opts.loadTextures !== false) {
+                const texUrl = baseUrl + md.specularTexture.name;
+                if (md.specularTexture.coordinatesIndex === 1) {
+                    mat.specularCoordIndex = 1;
+                }
+                texturePromises.push(
+                    loadTexture2D(scene.engine, texUrl).then((tex) => {
+                        mat.specularTexture = tex;
+                    })
+                );
+            }
+
+            if (md.ambientTexture && opts.loadTextures !== false) {
+                const texUrl = baseUrl + md.ambientTexture.name;
+                if (md.ambientTexture.level != null) {
+                    mat.ambientTexLevel = md.ambientTexture.level;
+                }
+                if (md.ambientTexture.coordinatesIndex === 1) {
+                    mat.ambientCoordIndex = 1;
+                }
+                texturePromises.push(
+                    loadTexture2D(scene.engine, texUrl).then((tex) => {
+                        mat.ambientTexture = tex;
+                    })
+                );
+            }
+
+            if (md.lightmapTexture && opts.loadTextures !== false) {
+                const texUrl = baseUrl + md.lightmapTexture.name;
+                if (md.lightmapTexture.level != null) {
+                    mat.lightmapLevel = md.lightmapTexture.level;
+                }
+                if (md.lightmapTexture.coordinatesIndex != null) {
+                    mat.lightmapCoordIndex = md.lightmapTexture.coordinatesIndex === 1 ? 1 : 0;
+                }
+                texturePromises.push(
+                    loadTexture2D(scene.engine, texUrl).then((tex) => {
+                        mat.lightmapTexture = tex;
+                    })
+                );
+            }
+
+            if (md.opacityTexture && opts.loadTextures !== false) {
+                const texUrl = baseUrl + md.opacityTexture.name;
+                if (md.opacityTexture.level != null) {
+                    mat.opacityLevel = md.opacityTexture.level;
+                }
+                if (md.opacityTexture.getAlphaFromRGB) {
+                    mat.opacityFromRGB = true;
+                }
+                texturePromises.push(
+                    loadTexture2D(scene.engine, texUrl).then((tex) => {
+                        mat.opacityTexture = tex;
+                    })
+                );
+            }
+
+            if (md.reflectionTexture && opts.loadTextures !== false) {
+                const texUrl = baseUrl + md.reflectionTexture.name;
+                if (md.reflectionTexture.level != null) {
+                    mat.reflectionLevel = md.reflectionTexture.level;
+                }
+                const cm = md.reflectionTexture.coordinatesMode;
+                if (cm === 2) {
+                    mat.reflectionCoordMode = 2;
+                }
+                texturePromises.push(
+                    loadTexture2D(scene.engine, texUrl).then((tex) => {
+                        mat.reflectionTexture = tex;
+                    })
+                );
+            }
+
+            materialMap.set(md.id, mat);
+        }
+    }
+
+    await Promise.all(texturePromises);
+
+    // Multi-material map: multiMat ID → array of sub-material IDs
+    const multiMatMap = new Map<string, string[]>();
+    if (data.multiMaterials) {
+        for (const mm of data.multiMaterials) {
+            multiMatMap.set(mm.id, mm.materials);
+        }
+    }
+
+    // Lights (point lights only for now)
+    if (data.lights) {
+        for (const ld of data.lights) {
+            if (ld.type === 0 && ld.position) {
+                const pl = createPointLight([ld.position[0]!, ld.position[1]!, ld.position[2]!], ld.intensity ?? 1);
+                if (ld.diffuse) {
+                    pl.diffuse = [ld.diffuse[0]!, ld.diffuse[1]!, ld.diffuse[2]!];
+                }
+                if (ld.specular) {
+                    pl.specular = [ld.specular[0]!, ld.specular[1]!, ld.specular[2]!];
+                }
+                if (ld.range != null) {
+                    pl.range = ld.range;
+                }
+                const { excludedMeshesIds: ex, includedOnlyMeshesIds: io } = ld;
+                if (ex?.length) {
+                    pl.excludedMeshIds = new Set(ex);
+                }
+                if (io?.length) {
+                    pl.includedOnlyMeshIds = new Set(io);
+                }
+                scene.add(pl);
+            }
+            // TODO: type 1 (directional), type 2 (spot), type 3 (hemispheric)
+        }
+    }
+
+    // Meshes
+    if (data.meshes) {
+        const maxMeshes = opts.maxMeshes ?? Infinity;
+        let meshCount = 0;
+
+        for (const md of data.meshes) {
+            if (meshCount >= maxMeshes) {
+                break;
+            }
+            if (md.isVisible === false) {
+                continue;
+            }
+            if (!md.positions || !md.normals || !md.indices) {
+                continue;
+            }
+            if (md.indices.length === 0) {
+                continue;
+            }
+
+            const positions = new Float32Array(md.positions);
+            const normals = new Float32Array(md.normals);
+            const allIndices = new Uint32Array(md.indices);
+            const uvs = md.uvs ? new Float32Array(md.uvs) : undefined;
+            const uvs2 = md.uvs2 ? new Float32Array(md.uvs2) : undefined;
+
+            // Resolve material IDs for this mesh
+            let matIds: string[] | null = null;
+            if (md.materialId) {
+                const multi = multiMatMap.get(md.materialId);
+                matIds = multi ?? [md.materialId];
+            }
+
+            // Default subMesh: whole mesh, materialIndex 0
+            const subMeshes = md.subMeshes ?? [
+                {
+                    materialIndex: 0,
+                    verticesStart: 0,
+                    verticesCount: positions.length / 3,
+                    indexStart: 0,
+                    indexCount: allIndices.length,
+                },
+            ];
+
+            for (const sub of subMeshes) {
+                if (sub.indexCount === 0) {
+                    continue;
+                }
+
+                const subIndices = allIndices.slice(sub.indexStart, sub.indexStart + sub.indexCount);
+                const gpu = uploadMeshToGPU(device, positions, normals, subIndices, uvs, uvs2);
+
+                // Resolve material for this sub-mesh
+                let mat: StandardMaterialProps;
+                if (matIds && sub.materialIndex < matIds.length) {
+                    mat = materialMap.get(matIds[sub.materialIndex]!) ?? createStandardMaterial();
+                } else if (matIds && matIds.length === 1) {
+                    mat = materialMap.get(matIds[0]!) ?? createStandardMaterial();
+                } else {
+                    mat = createStandardMaterial();
+                }
+
+                const mesh = {
+                    name: md.name + (subMeshes.length > 1 ? `_sub${sub.materialIndex}` : ""),
+                    id: md.id,
+                    material: mat,
+                    receiveShadows: false,
+                    _materialDirty: false,
+                    _gpu: gpu,
+                } as unknown as MeshInternal;
+
+                // Retain CPU geometry for detailed picking
+                mesh._cpuPositions = positions;
+                mesh._cpuNormals = normals;
+                mesh._cpuUvs = uvs;
+                mesh._cpuIndices = subIndices;
+
+                initMeshTransform(
+                    mesh,
+                    md.position ? md.position[0]! : 0,
+                    md.position ? md.position[1]! : 0,
+                    md.position ? md.position[2]! : 0,
+                    md.rotation ? md.rotation[0]! : 0,
+                    md.rotation ? md.rotation[1]! : 0,
+                    md.rotation ? md.rotation[2]! : 0,
+                    md.scaling ? md.scaling[0]! : 1,
+                    md.scaling ? md.scaling[1]! : 1,
+                    md.scaling ? md.scaling[2]! : 1
+                );
+
+                scene.add(mesh);
+                meshCount++;
+            }
+        }
+    }
+}

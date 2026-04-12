@@ -1,0 +1,40 @@
+name: Parity — Dispose & Material Swap
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec playwright install chromium
+
+      - run: pnpm build:bundle-scenes
+
+      - name: Run dispose & material-swap tests
+        run: |
+          npx playwright test tests/parity/dispose.spec.ts tests/parity/material-swap.spec.ts
+        env:
+          HEADLESS: "true"
+
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-results
+          path: test-results/
+          retention-days: 7

@@ -1,0 +1,28 @@
+import { createEngine, createSceneContext, createArcRotateCamera, attachControl, loadBabylon } from "babylon-lite";
+
+async function main(): Promise<void> {
+    const __initStart = performance.now();
+    const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
+    const engine = await createEngine(canvas);
+    const scene = createSceneContext(engine);
+
+    await loadBabylon(scene, "https://www.babylonjs.com/Scenes/Sponza/Sponza.babylon");
+
+    // Arc-rotate camera: same params used in BJS reference for parity
+    scene.camera = createArcRotateCamera(
+        0, // alpha — looking down +X
+        Math.PI / 2.2, // beta  — slightly above horizon
+        0.01, // radius — nearly at target (first-person view)
+        { x: 5.0855, y: 2.492, z: 0.1654 }
+    );
+    scene.camera.nearPlane = 0.1;
+    scene.camera.farPlane = 10000;
+    attachControl(scene.camera, canvas, scene);
+
+    await engine.start(scene);
+    canvas.dataset.drawCalls = String(engine.drawCallCount);
+    canvas.dataset.initMs = String(performance.now() - __initStart);
+    canvas.dataset.ready = "true";
+}
+
+main().catch(console.error);

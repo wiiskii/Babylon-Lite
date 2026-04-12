@@ -1,0 +1,315 @@
+/** StandardMaterial — Blinn-Phong material types and scene uniform helpers.
+ *
+ *  Pipeline creation is handled by standard-pipeline.ts (dynamic permutation system).
+ *  This module owns the shared types and the scene UBO update function.
+ *
+ *  Scene UBO (group 0, binding 0): 176 bytes = 44 floats
+ *    viewProjection: mat4x4 (16 floats)
+ *    view: mat4x4 (16 floats)
+ *    vEyePosition: vec4 (4 floats)
+ *    vFogInfos: vec4 (4 floats) — x=mode, y=start, z=end, w=density
+ *    vFogColor: vec4 (4 floats) — rgb + pad
+ */
+
+import type { Texture2D } from "../../texture/texture-2d.js";
+import type { MeshGroupBuilder } from "../../render/renderable.js";
+import { computeUboLayout } from "../../shader/ubo-layout.js";
+import { createStandardTemplate } from "./standard-template.js";
+
+// ─── Shared Constants ────────────────────────────────────────────────
+
+// Scene UBO size derived from template's baseSceneUboFields (lazy-computed)
+let _sceneUboSize: number | null = null;
+function getSceneUboSize(): number {
+    if (_sceneUboSize === null) {
+        const tpl = createStandardTemplate({ textures: {}, needsUV: false, needsUV2: false, hasShadow: false });
+        _sceneUboSize = computeUboLayout(tpl.baseSceneUboFields).totalBytes;
+    }
+    return _sceneUboSize;
+}
+
+// ─── Standard Group Builder ──────────────────────────────────────────
+
+/** Lazy-imports the standard renderable builder and builds the pipeline. */
+export const standardGroupBuilder: MeshGroupBuilder & { _loadRebuildSingle?: () => Promise<any> } = async (scene, meshes) => {
+    const hasTI = meshes.some((m) => !!m.thinInstances);
+    const hasBump = meshes.some((m) => !!(m.material as any).bumpTexture);
+    const hasShadow = meshes.some((m) => m.receiveShadows) && scene.lights.some((l: { shadowGenerator?: unknown }) => !!l.shadowGenerator);
+    const hasEmissive = meshes.some((m) => !!(m.material as any).emissiveTexture);
+    const hasSpecular = meshes.some((m) => !!(m.material as any).specularTexture);
+    const hasAmbient = meshes.some((m) => !!(m.material as any).ambientTexture);
+    const hasLightmap = meshes.some((m) => !!(m.material as any).lightmapTexture);
+    const hasOpacity = meshes.some((m) => !!(m.material as any).opacityTexture);
+    const hasReflection = meshes.some((m) => !!(m.material as any).reflectionTexture);
+
+    let tiSync: ((device: GPUDevice, ti: any, pass: GPURenderPassEncoder, slot: number, hasColor: boolean) => number) | undefined;
+    let tiFragment: any;
+    let bumpFragment: any;
+    let shadowFragment: any;
+    let emissiveFragment: any;
+    let specularFragment: any;
+    let ambientFragment: any;
+    let lightmapFragment: any;
+    let opacityFragment: any;
+    let reflectionFragment: any;
+
+    const imports: Promise<any>[] = [];
+    if (hasTI) {
+        imports.push(
+            import("../../mesh/thin-instance-gpu.js").then((m) => {
+                tiSync = m.syncThinInstanceBuffers;
+            }),
+            import("../../shader/fragments/thin-instance-fragment.js").then((m) => {
+                tiFragment = m.createThinInstanceFragment;
+            })
+        );
+    }
+    if (hasBump) {
+        imports.push(
+            import("./fragments/normal-map-fragment.js").then((m) => {
+                bumpFragment = m.createNormalMapFragment;
+            })
+        );
+    }
+    if (hasShadow) {
+        imports.push(
+            import("./fragments/std-shadow-fragment.js").then((m) => {
+                shadowFragment = m.createStdShadowFragment;
+            })
+        );
+    }
+    if (hasEmissive) {
+        imports.push(
+            import("./fragments/std-emissive-fragment.js").then((m) => {
+                emissiveFragment = m.createStdEmissiveFragment;
+            })
+        );
+    }
+    if (hasSpecular) {
+        imports.push(
+            import("./fragments/std-specular-fragment.js").then((m) => {
+                specularFragment = m.createStdSpecularFragment;
+            })
+        );
+    }
+    if (hasAmbient) {
+        imports.push(
+            import("./fragments/std-ambient-fragment.js").then((m) => {
+                ambientFragment = m.createStdAmbientFragment;
+            })
+        );
+    }
+    if (hasLightmap) {
+        imports.push(
+            import("./fragments/std-lightmap-fragment.js").then((m) => {
+                lightmapFragment = m.createStdLightmapFragment;
+            })
+        );
+    }
+    if (hasOpacity) {
+        imports.push(
+            import("./fragments/std-opacity-fragment.js").then((m) => {
+                opacityFragment = m.createStdOpacityFragment;
+            })
+        );
+    }
+    if (hasReflection) {
+        imports.push(
+            import("./fragments/std-reflection-fragment.js").then((m) => {
+                reflectionFragment = m.createStdReflectionFragment;
+            })
+        );
+    }
+    if (imports.length > 0) {
+        await Promise.all(imports);
+    }
+
+    const { buildStandardMeshRenderables } = await import("./standard-renderable.js");
+    return buildStandardMeshRenderables(scene, meshes, {
+        tiSync,
+        tiFragment,
+        bumpFragment,
+        shadowFragment,
+        emissiveFragment,
+        specularFragment,
+        ambientFragment,
+        lightmapFragment,
+        opacityFragment,
+        reflectionFragment,
+    });
+};
+// Lazy loader for the single-mesh rebuild function — loaded only when a material swap happens
+standardGroupBuilder._loadRebuildSingle = () => import("./standard-single-rebuild.js");
+
+// ─── Shared Types ────────────────────────────────────────────────────
+
+/** StandardMaterial properties — plain data. */
+export interface StandardMaterialProps {
+    diffuseColor: [number, number, number];
+    alpha: number;
+    specularColor: [number, number, number];
+    specularPower: number;
+    emissiveColor: [number, number, number];
+    ambientColor: [number, number, number];
+    /** Optional diffuse texture. Null = solid color only. */
+    diffuseTexture: Texture2D | null;
+    /** Diffuse texture UV channel. 0=UV1, 1=UV2. Default 0. */
+    diffuseCoordIndex: 0 | 1;
+    /** Optional emissive texture. Null = solid emissive color only. */
+    emissiveTexture: Texture2D | null;
+    /** Optional bump/normal-map texture. Uses cotangent-frame (no tangent attribute needed). */
+    bumpTexture: Texture2D | null;
+    /** Bump perturbation strength. Default 1.0 (maps to 1/level in BJS). */
+    bumpLevel: number;
+    /** Optional specular texture. Replaces specularColor; alpha modulates glossiness. */
+    specularTexture: Texture2D | null;
+    /** Specular texture UV channel. 0=UV1, 1=UV2. Default 0. */
+    specularCoordIndex: 0 | 1;
+    /** Optional ambient/occlusion texture. Multiplies final diffuse contribution. */
+    ambientTexture: Texture2D | null;
+    /** Ambient texture intensity. Default 1.0. */
+    ambientTexLevel: number;
+    /** Ambient texture UV channel. 0=UV1, 1=UV2. Default 0. */
+    ambientCoordIndex: 0 | 1;
+    /** Optional lightmap texture. Added to final color (additive mode). */
+    lightmapTexture: Texture2D | null;
+    /** Lightmap intensity. Default 1.0. */
+    lightmapLevel: number;
+    /** Lightmap UV channel. 0=UV1, 1=UV2. Default 1 (BJS convention). */
+    lightmapCoordIndex: 0 | 1;
+    /** Optional opacity texture. Multiplies alpha (.a channel). */
+    opacityTexture: Texture2D | null;
+    /** Opacity texture intensity. Default 1.0. */
+    opacityLevel: number;
+    /** When true, derive opacity from RGB luminance instead of .a channel. Default false. */
+    opacityFromRGB: boolean;
+    /** Alpha test cutoff. Fragments with alpha < alphaCutOff are discarded. Default 0.4 (BJS convention). */
+    alphaCutOff: number;
+    /** Optional reflection texture (2D spherical map). Null = no reflection. */
+    reflectionTexture: Texture2D | null;
+    /** Reflection intensity. Default 1.0. */
+    reflectionLevel: number;
+    /** Reflection coordinate mode. 1=spherical, 2=planar. Default 1. */
+    reflectionCoordMode: 1 | 2;
+    /** UV tiling scale. Default [1, 1]. */
+    uvScale: [number, number];
+    /** Back-face culling. Default true (BJS convention). False = double-sided. */
+    backFaceCulling: boolean;
+    /** When true, skip all lighting and output emissive * diffuse * baseColor. Default false. */
+    disableLighting: boolean;
+}
+
+/** Fog configuration — plain data. */
+export interface FogConfig {
+    mode: 0 | 1 | 2 | 3; // 0=off, 1=exp, 2=exp2, 3=linear
+    density: number;
+    start: number;
+    end: number;
+    color: [number, number, number];
+}
+
+/** Create StandardMaterial with Babylon defaults. */
+export function createStandardMaterial(): StandardMaterialProps {
+    return {
+        diffuseColor: [1, 1, 1],
+        alpha: 1,
+        specularColor: [1, 1, 1],
+        specularPower: 64,
+        emissiveColor: [0, 0, 0],
+        ambientColor: [0, 0, 0],
+        diffuseTexture: null,
+        diffuseCoordIndex: 0,
+        emissiveTexture: null,
+        bumpTexture: null,
+        bumpLevel: 1,
+        specularTexture: null,
+        specularCoordIndex: 0,
+        ambientTexture: null,
+        ambientTexLevel: 1,
+        ambientCoordIndex: 0,
+        lightmapTexture: null,
+        lightmapLevel: 1,
+        lightmapCoordIndex: 1,
+        opacityTexture: null,
+        opacityLevel: 1,
+        opacityFromRGB: false,
+        alphaCutOff: 0.4,
+        reflectionTexture: null,
+        reflectionLevel: 1,
+        reflectionCoordMode: 1,
+        uvScale: [1, 1],
+        backFaceCulling: true,
+        disableLighting: false,
+        _buildGroup: standardGroupBuilder,
+    } as StandardMaterialProps;
+}
+
+/** Collect all non-null textures referenced by a Standard material (for acquire/release). */
+export function collectStdBoundTextures(mat: StandardMaterialProps): Texture2D[] {
+    const t: Texture2D[] = [];
+    if (mat.diffuseTexture) {
+        t.push(mat.diffuseTexture);
+    }
+    if (mat.emissiveTexture) {
+        t.push(mat.emissiveTexture);
+    }
+    if (mat.bumpTexture) {
+        t.push(mat.bumpTexture);
+    }
+    if (mat.specularTexture) {
+        t.push(mat.specularTexture);
+    }
+    if (mat.ambientTexture) {
+        t.push(mat.ambientTexture);
+    }
+    if (mat.lightmapTexture) {
+        t.push(mat.lightmapTexture);
+    }
+    if (mat.opacityTexture) {
+        t.push(mat.opacityTexture);
+    }
+    if (mat.reflectionTexture) {
+        t.push(mat.reflectionTexture);
+    }
+    return t;
+}
+
+// ─── Scene Uniforms Update ───────────────────────────────────────────
+
+// Pre-allocated scratch buffer for scene uniform writes (avoids per-frame allocation)
+let _sceneUniformScratch: Float32Array<ArrayBuffer> | null = null;
+
+/** Write per-frame scene uniforms to the given UBO.
+ *  Identical layout across all pipeline variants. */
+export function updateSceneUniforms(
+    device: GPUDevice,
+    sceneUBO: GPUBuffer,
+    viewProjection: Float32Array,
+    viewMatrix: Float32Array,
+    eyePosition: [number, number, number],
+    fog?: FogConfig
+): void {
+    const size = getSceneUboSize() / 4;
+    if (!_sceneUniformScratch || _sceneUniformScratch.length !== size) {
+        _sceneUniformScratch = new Float32Array(size);
+    }
+    const data = _sceneUniformScratch;
+    data.fill(0);
+    data.set(viewProjection, 0); // 0-15: viewProjection
+    data.set(viewMatrix, 16); // 16-31: view
+    data[32] = eyePosition[0]; // 32-35: vEyePosition
+    data[33] = eyePosition[1];
+    data[34] = eyePosition[2];
+    data[35] = 0;
+    if (fog) {
+        data[36] = fog.mode; // 36-39: vFogInfos
+        data[37] = fog.start;
+        data[38] = fog.end;
+        data[39] = fog.density;
+        data[40] = fog.color[0]; // 40-43: vFogColor
+        data[41] = fog.color[1];
+        data[42] = fog.color[2];
+        data[43] = 0;
+    }
+    device.queue.writeBuffer(sceneUBO, 0, data);
+}

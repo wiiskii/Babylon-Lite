@@ -1,0 +1,43 @@
+# Agent Instructions
+
+## Mandatory: Read GUIDANCE.md
+
+At the start of every session and after every context compaction,
+you **MUST** read and follow `GUIDANCE.md` in the repo root before
+doing any work. It is the single source of truth for all
+architectural and workflow decisions.
+
+---
+
+## Two-Agent Workflow
+
+This repo uses two Copilot chat modes (`.github/chatmodes/`):
+
+| Mode | File | Role |
+|------|------|------|
+| **Gandalf** | `gandalf.chatmode.md` | Orchestrator & QA gatekeeper — receives tasks, delegates work, enforces guardrails |
+| **Einstein** | `einstein.chatmode.md` | Expert coder — implements features, fixes bugs, runs tests |
+
+### How It Works
+
+1. **User → Gandalf**: Describe the task or feature you want.
+2. **Gandalf → Einstein**: Gandalf delegates coding work via sub-agent with full context.
+3. **Einstein → Gandalf**: Einstein reports completion with checklist status.
+4. **Gandalf verifies**: Runs **all** guardrail checks independently (does NOT trust Einstein's word).
+   Gandalf **MUST** run the full test suite before declaring success:
+   - `pnpm test:perf` — RAF performance benchmarks pass
+   - `pnpm build:bundle-scenes` — bundle scenes build successfully
+   - `pnpm test:parity` — no MAD regression in visual parity AND bundle-size ceilings hold
+   - `git diff tests/bundle-size.test.ts` — no ceiling changes
+   - `git diff reference/` — no golden reference changes
+   These can also be run as a single command: `pnpm test` (which chains all three).
+5. **All pass** → Gandalf reports success. **Any fail** → Einstein sent back to fix.
+
+### Guardrails (Non-Negotiable)
+
+- **Run ALL tests before validating** — Gandalf must actually execute `pnpm test` (or the three commands above) and review the output. Never skip tests or declare success based on code review alone.
+- **No MAD regression** — visual parity tests must all pass.
+- **All tests green** — perf, bundle-size, and parity tests must all pass.
+- **No bundle-size regression** — bundle size must stay within ceilings.
+- **No ceiling updates** — bundle-size test thresholds cannot be changed without explicit user approval.
+- **No golden reference changes** — reference screenshots are immutable unless user explicitly requests update.

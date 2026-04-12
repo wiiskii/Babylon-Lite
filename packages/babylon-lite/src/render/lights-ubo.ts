@@ -1,0 +1,57 @@
+/** Shared lights UBO helpers — used by both Standard and PBR pipelines.
+ *
+ *  UBO layout: 16-byte header (u32 count + 3×u32 padding) followed by
+ *  up to MAX_LIGHTS × LightEntry (4 × vec4 = 64 bytes each).
+ *  Total: 16 + 4 × 64 = 272 bytes. */
+
+import type { LightBase } from "../light/types.js";
+import type { LightBaseInternal } from "../light/types.js";
+import { MAX_LIGHTS, LIGHT_ENTRY_FLOATS } from "../light/types.js";
+
+/** Total byte size of the lights UBO (header + MAX_LIGHTS entries). */
+export const LIGHTS_UBO_SIZE = 16 + MAX_LIGHTS * LIGHT_ENTRY_FLOATS * 4;
+
+/** Compute a composite version from all lights (sum of _lightVersion).
+ *  Returns 0 for lights without version tracking (always refresh). */
+export function computeLightsVersion(lights: readonly LightBase[]): number {
+    let v = 0;
+    for (const light of lights) {
+        v += (light as LightBaseInternal)._lightVersion ?? 0;
+    }
+    return v;
+}
+
+/** Fill a Float32Array with standard light data. Reused by create and refresh paths. */
+export function fillLightsData(data: Float32Array, lights: readonly LightBase[]): void {
+    data.fill(0);
+    let count = 0;
+    const headerFloats = 4; // count + 3 padding
+    for (const light of lights) {
+        if (count >= MAX_LIGHTS) {
+            break;
+        }
+        const li = light as LightBaseInternal;
+        if (!li._writeStandardLightUbo) {
+            continue;
+        }
+        li._writeStandardLightUbo(data, headerFloats + count * LIGHT_ENTRY_FLOATS);
+        count++;
+    }
+    // Write count into the first u32 slot
+    new Uint32Array(data.buffer, data.byteOffset, 1)[0] = count;
+}
+
+/** Create a new lights UBO from all standard-compatible lights in the scene. */
+export function writeLightsUBO(device: GPUDevice, lights: readonly LightBase[]): GPUBuffer {
+    const data = new Float32Array(LIGHTS_UBO_SIZE / 4);
+    fillLightsData(data, lights);
+    const buf = device.createBuffer({ size: LIGHTS_UBO_SIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    device.queue.writeBuffer(buf, 0, data.buffer, data.byteOffset, data.byteLength);
+    return buf;
+}
+
+/** Refresh an existing lights UBO with current light state. */
+export function refreshLightsUBO(device: GPUDevice, buffer: GPUBuffer, lights: readonly LightBase[], scratch: Float32Array): void {
+    fillLightsData(scratch, lights);
+    device.queue.writeBuffer(buffer, 0, scratch as Float32Array<ArrayBuffer>);
+}
