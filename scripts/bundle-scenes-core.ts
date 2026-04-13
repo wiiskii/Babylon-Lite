@@ -73,10 +73,9 @@ export async function buildBundleScenes(): Promise<void> {
 
     function spawnBuild(scene: string): Promise<void> {
         return new Promise((res, rej) => {
-            const child = spawn("npx", ["tsx", workerScript, scene], {
+            const child = spawn(process.execPath, ["--import", "tsx", workerScript, scene], {
                 env: { ...process.env, BUNDLE_OUT_DIR: outDir },
                 stdio: "inherit",
-                shell: true,
             });
             child.on("exit", (code) => {
                 if (code === 0) {
@@ -159,7 +158,18 @@ async function measureLiveSizes(): Promise<Record<string, { rawKB: number; gzipK
     }
 
     try {
-        const browser = await chromium.launch({ channel: "chrome", headless: true });
+        const browser = await chromium.launch({
+            channel: "chrome",
+            headless: true,
+            args: [
+                "--enable-unsafe-webgpu",
+                "--enable-features=Vulkan",
+                "--use-vulkan=swiftshader",
+                "--use-angle=swiftshader",
+                "--disable-vulkan-fallback-to-gl-for-testing",
+                "--ignore-gpu-blocklist",
+            ],
+        });
 
         // Measure Lite scenes (write after each)
         for (const scene of SCENES) {
