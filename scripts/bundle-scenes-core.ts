@@ -231,7 +231,7 @@ export const srcDir = resolve(ROOT, "packages/babylon-lite/src");
 const sceneConfig: { id: number }[] = JSON.parse(readFileSync(resolve(ROOT, "scene-config.json"), "utf-8"));
 const ALL_SCENES = sceneConfig.map((s) => `scene${s.id}`);
 const SCENES = process.env.BUNDLE_SCENES ? process.env.BUNDLE_SCENES.split(",") : ALL_SCENES;
-const BJS_SCENES = SCENES.map((s) => `bjs-${s}`);
+const BJS_SCENES = process.env.SKIP_BJS ? [] : SCENES.map((s) => `bjs-${s}`);
 
 function getAllJsFiles(dir: string): string[] {
     const results: string[] = [];

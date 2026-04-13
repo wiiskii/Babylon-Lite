@@ -15,6 +15,17 @@ if (existsSync(_envLocal)) {
 
 const screenX = process.env.SCREEN_X;
 const headless = process.env.HEADLESS === 'true';
+const isCI = !!process.env.CI;
+
+const swiftShaderArgs = isCI
+    ? [
+          '--enable-features=Vulkan',
+          '--use-vulkan=swiftshader',
+          '--use-angle=swiftshader',
+          '--disable-vulkan-fallback-to-gl-for-testing',
+          '--ignore-gpu-blocklist',
+      ]
+    : [];
 
 export default defineConfig({
   testDir: './tests/perf',
@@ -29,11 +40,7 @@ export default defineConfig({
         '--force-color-profile=srgb',
         '--enable-precise-memory-info',
         '--enable-unsafe-webgpu',
-        '--enable-features=Vulkan',
-        '--use-vulkan=swiftshader',
-        '--use-angle=swiftshader',
-        '--disable-vulkan-fallback-to-gl-for-testing',
-        '--ignore-gpu-blocklist',
+        ...swiftShaderArgs,
         ...(screenX ? [`--window-position=${screenX},0`] : []),
       ],
     },
