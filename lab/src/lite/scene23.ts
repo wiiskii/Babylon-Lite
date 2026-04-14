@@ -50,7 +50,7 @@ async function main(): Promise<void> {
             direction: [1, 0],
         },
     });
-    enableMaterialTracking(material);
+    await enableMaterialTracking(material);
 
     // Sphere: 128 segments, diameter 2
     const sphere = createSphere(engine, { segments: 128, diameter: 2 });
