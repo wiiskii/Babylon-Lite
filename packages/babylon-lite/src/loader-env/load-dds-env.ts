@@ -3,6 +3,7 @@ import type { EngineContextInternal } from "../engine/engine.js";
 import type { EnvironmentTextures } from "./load-env.js";
 import { acquireGPUTexture, releaseGPUTexture } from "../resource/gpu-pool.js";
 import { assembleEnvironmentTextures } from "./env-helpers.js";
+import { shToPolynomial } from "../math/spherical-harmonics.js";
 
 // ─── Float16 Conversion ─────────────────────────────────────────────────────
 
@@ -25,13 +26,13 @@ const PI = Math.PI;
 
 const SH_BASIS = [
     Math.sqrt(1 / (4 * PI)),
-    -Math.sqrt(3 / (4 * PI)),
     Math.sqrt(3 / (4 * PI)),
-    -Math.sqrt(3 / (4 * PI)),
+    Math.sqrt(3 / (4 * PI)),
+    Math.sqrt(3 / (4 * PI)),
     Math.sqrt(15 / (4 * PI)),
-    -Math.sqrt(15 / (4 * PI)),
+    Math.sqrt(15 / (4 * PI)),
     Math.sqrt(5 / (16 * PI)),
-    -Math.sqrt(15 / (4 * PI)),
+    Math.sqrt(15 / (4 * PI)),
     Math.sqrt(15 / (16 * PI)),
 ];
 
@@ -138,10 +139,9 @@ function computeSH(raw: Uint8Array, width: number, mipCount: number): Float32Arr
 
                 for (let i = 0; i < 9; i++) {
                     const w = dsa * SH_BASIS[i]! * trig[i]!;
-                    const j = i * 3;
-                    sh[j] = sh[j]! + r * w;
-                    sh[j + 1] = sh[j + 1]! + g * w;
-                    sh[j + 2] = sh[j + 2]! + b * w;
+                    sh[i] = sh[i]! + r * w;
+                    sh[9 + i] = sh[9 + i]! + g * w;
+                    sh[18 + i] = sh[18 + i]! + b * w;
                 }
 
                 totalSolidAngle += dsa;
@@ -158,12 +158,10 @@ function computeSH(raw: Uint8Array, width: number, mipCount: number): Float32Arr
     }
 
     // Incident radiance → irradiance (cosine kernel convolution)
-    for (let i = 0; i < 9; i++) {
-        const k = SH_COS_KERNEL[i]!;
-        const j = i * 3;
-        sh[j] = sh[j]! * k;
-        sh[j + 1] = sh[j + 1]! * k;
-        sh[j + 2] = sh[j + 2]! * k;
+    for (let ch = 0; ch < 3; ch++) {
+        for (let i = 0; i < 9; i++) {
+            sh[ch * 9 + i] = sh[ch * 9 + i]! * SH_COS_KERNEL[i]!;
+        }
     }
 
     // Irradiance → Lambertian radiance
@@ -174,36 +172,6 @@ function computeSH(raw: Uint8Array, width: number, mipCount: number): Float32Arr
 
     // Convert SH coefficients → polynomial form (matching BJS SphericalPolynomial.FromHarmonics)
     return shToPolynomial(sh);
-}
-
-// ─── SH → Polynomial Conversion ─────────────────────────────────────────────
-
-function shToPolynomial(sh: Float64Array): Float32Array {
-    const poly = new Float32Array(27);
-    for (let c = 0; c < 3; c++) {
-        // x = l11 * -1.02333, y = l1_1 * -1.02333, z = l10 * 1.02333
-        poly[c] = sh[3 * 3 + c]! * -1.02333;
-        poly[3 + c] = sh[1 * 3 + c]! * -1.02333;
-        poly[6 + c] = sh[2 * 3 + c]! * 1.02333;
-        // xx = l00*0.886277 - l20*0.247708 + l22*0.429043
-        poly[9 + c] = sh[c]! * 0.886277 - sh[6 * 3 + c]! * 0.247708 + sh[8 * 3 + c]! * 0.429043;
-        // yy = l00*0.886277 - l20*0.247708 - l22*0.429043
-        poly[12 + c] = sh[c]! * 0.886277 - sh[6 * 3 + c]! * 0.247708 - sh[8 * 3 + c]! * 0.429043;
-        // zz = l00*0.886277 + l20*0.495417
-        poly[15 + c] = sh[c]! * 0.886277 + sh[6 * 3 + c]! * 0.495417;
-        // yz = l2_1 * -0.858086
-        poly[18 + c] = sh[5 * 3 + c]! * -0.858086;
-        // zx = l21 * -0.858086
-        poly[21 + c] = sh[7 * 3 + c]! * -0.858086;
-        // xy = l2_2 * 0.858086
-        poly[24 + c] = sh[4 * 3 + c]! * 0.858086;
-    }
-    // Final 1/π from BJS SphericalPolynomial.FromHarmonics
-    const invPI = 1 / PI;
-    for (let i = 0; i < 27; i++) {
-        poly[i] = poly[i]! * invPI;
-    }
-    return poly;
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────

@@ -5,6 +5,8 @@
  * and computes spherical harmonics from equirectangular panoramas.
  */
 
+import { shToPolynomial } from "../math/spherical-harmonics.js";
+
 // ─── RGBE Parser ────────────────────────────────────────────────────────────
 
 export interface HdrImage {
@@ -190,29 +192,5 @@ export function computeSHFromEquirect(data: Float32Array, width: number, height:
     }
 
     // SH → BJS SphericalPolynomial (FromHarmonics conversion)
-    const invPI = 1 / Math.PI;
-    const poly = new Float32Array(27);
-    for (let ch = 0; ch < 3; ch++) {
-        const o = ch * 9;
-        const L00 = sh[o]!,
-            L1_1 = sh[o + 1]!,
-            L10 = sh[o + 2]!,
-            L11 = sh[o + 3]!;
-        const L2_2 = sh[o + 4]!,
-            L2_1 = sh[o + 5]!,
-            L20 = sh[o + 6]!,
-            L21 = sh[o + 7]!,
-            L22 = sh[o + 8]!;
-
-        poly[0 * 3 + ch] = L11 * 1.02333 * invPI; // x
-        poly[1 * 3 + ch] = L1_1 * 1.02333 * invPI; // y
-        poly[2 * 3 + ch] = L10 * 1.02333 * invPI; // z
-        poly[3 * 3 + ch] = (L00 * 0.886227 - L20 * 0.247708 + L22 * 0.429043) * invPI; // xx
-        poly[4 * 3 + ch] = (L00 * 0.886227 - L20 * 0.247708 - L22 * 0.429043) * invPI; // yy
-        poly[5 * 3 + ch] = (L00 * 0.886227 + L20 * 0.495417) * invPI; // zz
-        poly[6 * 3 + ch] = L2_1 * 0.858086 * invPI; // yz
-        poly[7 * 3 + ch] = L21 * 0.858086 * invPI; // zx
-        poly[8 * 3 + ch] = L2_2 * 0.858086 * invPI; // xy
-    }
-    return poly;
+    return shToPolynomial(sh);
 }

@@ -28,7 +28,12 @@ function topoSort(fragments: readonly ShaderFragment[]): ShaderFragment[] {
                 throw new Error(`Fragment "${f.id}" depends on unknown fragment "${d}"`);
             }
             inDeg.set(f.id, (inDeg.get(f.id) ?? 0) + 1);
-            (deps.get(d) ?? (deps.set(d, []), deps.get(d)!)).push(f.id);
+            let arr = deps.get(d);
+            if (!arr) {
+                arr = [];
+                deps.set(d, arr);
+            }
+            arr.push(f.id);
         }
     }
     const q: string[] = [];
@@ -39,14 +44,15 @@ function topoSort(fragments: readonly ShaderFragment[]): ShaderFragment[] {
     }
     q.sort();
     const out: ShaderFragment[] = [];
-    while (q.length) {
-        const id = q.shift()!;
+    let qi = 0;
+    while (qi < q.length) {
+        const id = q[qi++]!;
         out.push(byId.get(id)!);
         for (const d of deps.get(id) ?? []) {
             const nd = (inDeg.get(d) ?? 1) - 1;
             inDeg.set(d, nd);
             if (nd === 0) {
-                let i = 0;
+                let i = qi;
                 while (i < q.length && q[i]! < d) {
                     i++;
                 }
@@ -63,7 +69,13 @@ function topoSort(fragments: readonly ShaderFragment[]): ShaderFragment[] {
 function dedup<T extends { name: string }>(base: readonly T[], extra: readonly T[]): T[] {
     const seen = new Set<string>();
     const all: T[] = [];
-    for (const v of [...base, ...extra]) {
+    for (const v of base) {
+        if (!seen.has(v.name)) {
+            seen.add(v.name);
+            all.push(v);
+        }
+    }
+    for (const v of extra) {
         if (!seen.has(v.name)) {
             seen.add(v.name);
             all.push(v);
