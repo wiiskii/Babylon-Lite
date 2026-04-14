@@ -85,7 +85,7 @@ export type { TorusOptions } from "./mesh/create-torus.js";
 export type { GroundOptions } from "./mesh/create-ground.js";
 
 // ─── Picking ─────────────────────────────────────────────────────────
-export { createGpuPicker } from "./picking/gpu-picker.js";
+export { createGpuPicker, pickAsync, disposePicker } from "./picking/gpu-picker.js";
 export type { GpuPicker } from "./picking/gpu-picker.js";
 export type { PickingInfo } from "./picking/picking-info.js";
 export { enableDetailedPicking } from "./picking/detailed-picking.js";
