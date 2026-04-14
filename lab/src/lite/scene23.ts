@@ -10,8 +10,8 @@ import { addToScene, startEngine, onBeforeRender,
     createPbrMaterial,
     createSolidTexture2D,
     loadEnvironment,
-    enableMaterialTracking,
 } from "babylon-lite";
+import { installPbrTracking } from "babylon-lite/material/tracking/pbr-tracking";
 
 async function main(): Promise<void> {
     const __initStart = performance.now();
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
             direction: [1, 0],
         },
     });
-    await enableMaterialTracking(material);
+    installPbrTracking(material);
 
     // Sphere: 128 segments, diameter 2
     const sphere = createSphere(engine, { segments: 128, diameter: 2 });
