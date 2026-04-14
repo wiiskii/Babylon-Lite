@@ -227,7 +227,7 @@
         "id": 23,
         "slug": "scene23-anisotropy",
         "name": "Scene 23 \u2014 PBR Anisotropy",
-        "maxMad": 0.25,
+        "maxMad": 0.02,
         "maxRawKB": 80,
         "maxGzipKB": 30,
         "description": "PBR metallic sphere with anisotropic reflections. DDS environment, no direct light.",

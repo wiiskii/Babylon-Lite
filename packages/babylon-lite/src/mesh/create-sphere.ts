@@ -52,7 +52,7 @@ export function createSphereData(options: SphereOptions = {}): SphereMeshData {
 
             const nx = Math.sin(angleZ) * Math.cos(angleY);
             const ny = Math.cos(angleZ);
-            const nz = Math.sin(angleZ) * Math.sin(angleY);
+            const nz = -Math.sin(angleZ) * Math.sin(angleY);
 
             positions[vIdx * 3] = rx * nx;
             positions[vIdx * 3 + 1] = ry * ny;
@@ -77,11 +77,11 @@ export function createSphereData(options: SphereOptions = {}): SphereMeshData {
             const b = a + totalYRotationSteps + 1;
 
             indices[iIdx++] = a;
-            indices[iIdx++] = b;
             indices[iIdx++] = a + 1;
+            indices[iIdx++] = b;
 
-            indices[iIdx++] = a + 1;
             indices[iIdx++] = b;
+            indices[iIdx++] = a + 1;
             indices[iIdx++] = b + 1;
         }
     }
