@@ -90,30 +90,17 @@ export interface PhysicsWorld {
     /** @internal */ _timestep: number;
 }
 
-// ─── WASM loading (lazy, cached as Promise) ──────────────────────────
-
-let _wasmPromise: Promise<any> | null = null;
-
-function loadHavokWasm(): Promise<any> {
-    if (!_wasmPromise) {
-        // Dynamic import keeps physics bytes out of the main bundle.
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        _wasmPromise = (Function('return import("@babylonjs/havok")')() as Promise<any>).then((m: any) => {
-            const init = m.default ?? m;
-            return init();
-        });
-    }
-    return _wasmPromise;
-}
-
 // ─── Factory ─────────────────────────────────────────────────────────
 
 /**
  * Create a Havok physics world and register per-frame stepping on the scene.
- * Loads the Havok WASM binary on first call (cached for subsequent worlds).
+ *
+ * The caller is responsible for loading the WASM binary externally:
+ *   import HavokPhysics from "@babylonjs/havok";
+ *   const hknp = await HavokPhysics({ locateFile: () => "/HavokPhysics.wasm" });
+ *   const world = createHavokPhysics(scene, hknp);
  */
-export async function createHavokPhysics(scene: SceneContext, gravity?: Vec3): Promise<PhysicsWorld> {
-    const hknp = await loadHavokWasm();
+export function createHavokPhysics(scene: SceneContext, hknp: any, gravity?: Vec3): PhysicsWorld {
     const hkWorld = hknp.HP_World_Create()[1];
 
     const g = gravity ?? { x: 0, y: -9.81, z: 0 };
