@@ -237,7 +237,7 @@
         "id": 24,
         "slug": "scene24-hillvalley",
         "name": "Scene 24 — Hill Valley",
-        "maxMad": 0.08,
+        "maxMad": 0.04,
         "maxRawKB": 60,
         "maxGzipKB": 23,
         "description": "Hill Valley town loaded from .babylon format. Pre-baked lighting, standard materials, free camera.",

@@ -1,11 +1,13 @@
 /** CubeTexture — loads 6 face images into a GPU cube texture with mipmaps. */
 import { getOrCreateSampler } from "../resource/gpu-pool.js";
 import { generateMipmaps, mipLevelCount } from "./generate-mipmaps.js";
+import type { EngineContextInternal } from "../engine/engine.js";
 
 type CubeResult = { texture: GPUTexture; view: GPUTextureView; sampler: GPUSampler };
 let _cc: WeakMap<GPUDevice, Map<string, Promise<CubeResult>>> | null = null;
 
-export function loadCubeTexture(device: GPUDevice, baseUrl: string, ext = ".jpg"): Promise<CubeResult> {
+export function loadCubeTexture(engine: EngineContextInternal, baseUrl: string, ext = ".jpg"): Promise<CubeResult> {
+    const device = engine.device;
     if (!_cc) {
         _cc = new WeakMap();
     }
@@ -26,7 +28,7 @@ export function loadCubeTexture(device: GPUDevice, baseUrl: string, ext = ".jpg"
                 if (!r.ok) {
                     throw new Error(`Cube face load failed: ${baseUrl}${s}${ext}`);
                 }
-                return createImageBitmap(await r.blob(), { colorSpaceConversion: "none" });
+                return createImageBitmap(await r.blob(), { premultiplyAlpha: "none", colorSpaceConversion: "none" });
             })
         );
         const sz = bitmaps[0]!.width;
@@ -38,14 +40,14 @@ export function loadCubeTexture(device: GPUDevice, baseUrl: string, ext = ".jpg"
             mipLevelCount: mipLevelCount(sz, sz),
         });
         for (let i = 0; i < 6; i++) {
-            device.queue.copyExternalImageToTexture({ source: bitmaps[i]! }, { texture: tex, origin: [0, 0, i] }, [sz, sz, 1]);
+            device.queue.copyExternalImageToTexture({ source: bitmaps[i]! }, { texture: tex, origin: [0, 0, i], premultipliedAlpha: false }, [sz, sz, 1]);
             bitmaps[i]!.close();
-            generateMipmaps(device, tex, i);
+            generateMipmaps(engine, tex, i);
         }
         return {
             texture: tex,
             view: tex.createView({ dimension: "cube", format: "rgba8unorm" }),
-            sampler: getOrCreateSampler(device, { magFilter: "linear", minFilter: "linear", mipmapFilter: "linear" }),
+            sampler: getOrCreateSampler(engine, { magFilter: "linear", minFilter: "linear", mipmapFilter: "linear" }),
         };
     })();
     dc.set(key, p);

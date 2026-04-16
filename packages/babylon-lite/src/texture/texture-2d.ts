@@ -42,7 +42,8 @@ export interface Texture2DOptions {
 let _tex2dCache: WeakMap<GPUDevice, Map<string, Promise<Texture2D>>> | null = null;
 
 /** Clear the texture cache for a device, releasing cache-held refs. */
-export function clearTexture2DCache(device: GPUDevice): void {
+export function clearTexture2DCache(engine: EngineContextInternal): void {
+    const device = engine.device;
     _tex2dCache?.delete(device);
 }
 
@@ -64,13 +65,14 @@ export function loadTexture2D(engine: EngineContext, url: string, opts: Texture2
     }
 
     const map = dc;
-    const p = loadTexture2DImpl(device, url, opts);
+    const p = loadTexture2DImpl(engine as EngineContextInternal, url, opts);
     map.set(key, p);
     p.catch(() => map.delete(key));
     return p;
 }
 
-async function loadTexture2DImpl(device: GPUDevice, url: string, opts: Texture2DOptions): Promise<Texture2D> {
+async function loadTexture2DImpl(engine: EngineContextInternal, url: string, opts: Texture2DOptions): Promise<Texture2D> {
+    const device = engine.device;
     const mipMaps = opts.mipMaps ?? true;
     const addressModeU = opts.addressModeU ?? "repeat";
     const addressModeV = opts.addressModeV ?? "repeat";
@@ -80,7 +82,7 @@ async function loadTexture2DImpl(device: GPUDevice, url: string, opts: Texture2D
 
     const response = await fetch(url);
     const blob = await response.blob();
-    const imageBitmap = await createImageBitmap(blob);
+    const imageBitmap = await createImageBitmap(blob, { premultiplyAlpha: "none", colorSpaceConversion: "none" });
 
     const width = imageBitmap.width;
     const height = imageBitmap.height;
@@ -93,19 +95,19 @@ async function loadTexture2DImpl(device: GPUDevice, url: string, opts: Texture2D
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
-    device.queue.copyExternalImageToTexture({ source: imageBitmap, flipY: invertY }, { texture }, { width, height });
+    device.queue.copyExternalImageToTexture({ source: imageBitmap, flipY: invertY }, { texture, premultipliedAlpha: false }, { width, height });
     imageBitmap.close();
 
     if (mipMaps && mipLevelCount > 1) {
         const { generateMipmaps } = await import("./generate-mipmaps.js");
-        generateMipmaps(device, texture);
+        generateMipmaps(engine, texture);
     }
 
     const minF = opts.minFilter ?? "linear";
     const magF = opts.magFilter ?? "linear";
     const mipF: GPUMipmapFilterMode = mipMaps ? "linear" : "nearest";
     const allLinear = minF === "linear" && magF === "linear" && mipF === "linear";
-    const sampler = getOrCreateSampler(device, {
+    const sampler = getOrCreateSampler(engine, {
         addressModeU,
         addressModeV,
         minFilter: minF,

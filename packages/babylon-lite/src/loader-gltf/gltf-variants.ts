@@ -11,6 +11,7 @@ import { pbrGroupBuilder } from "../material/pbr/pbr-material.js";
 import type { GltfMaterialData } from "./gltf-material.js";
 import { assembleMaterial } from "./gltf-material.js";
 import type { MaterialVariantData, VariantMeshEntry } from "./material-variants.js";
+import type { EngineContextInternal } from "../engine/engine.js";
 import { getOrCreateSampler } from "../resource/gpu-pool.js";
 
 function mipCount(w: number, h: number): number {
@@ -22,9 +23,10 @@ function linearToSrgbByte(v: number): number {
     return Math.round((c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055) * 255);
 }
 
-let _generateMipmaps: ((device: GPUDevice, texture: GPUTexture) => void) | null = null;
+let _generateMipmaps: ((engine: EngineContextInternal, texture: GPUTexture) => void) | null = null;
 
-function uploadTex(device: GPUDevice, bitmap: ImageBitmap | null, srgb: boolean, sampler: GPUSampler, fallback?: Uint8Array) {
+function uploadTex(engine: EngineContextInternal, bitmap: ImageBitmap | null, srgb: boolean, sampler: GPUSampler, fallback?: Uint8Array) {
+    const device = engine.device;
     const w = bitmap?.width ?? 1;
     const h = bitmap?.height ?? 1;
     const fmt: GPUTextureFormat = srgb ? "rgba8unorm-srgb" : "rgba8unorm";
@@ -37,29 +39,29 @@ function uploadTex(device: GPUDevice, bitmap: ImageBitmap | null, srgb: boolean,
     });
     if (bitmap) {
         device.queue.copyExternalImageToTexture({ source: bitmap }, { texture: tex, premultipliedAlpha: false }, { width: w, height: h });
-        _generateMipmaps!(device, tex);
+        _generateMipmaps!(engine, tex);
     } else {
         device.queue.writeTexture({ texture: tex }, (fallback ?? new Uint8Array([255, 255, 255, 255])) as Uint8Array<ArrayBuffer>, { bytesPerRow: 4 }, { width: 1, height: 1 });
     }
     return { texture: tex, view: tex.createView(), sampler, width: w, height: h };
 }
 
-async function buildPbr(device: GPUDevice, mat: GltfMaterialData, sampler: GPUSampler): Promise<PbrMaterialPropsInternal> {
+async function buildPbr(engine: EngineContextInternal, mat: GltfMaterialData, sampler: GPUSampler): Promise<PbrMaterialPropsInternal> {
     const baseColorTexture = mat.baseColorImage
-        ? uploadTex(device, mat.baseColorImage, true, sampler)
+        ? uploadTex(engine, mat.baseColorImage, true, sampler)
         : (() => {
               const f = mat.baseColorFactor;
               return uploadTex(
-                  device,
+                  engine,
                   null,
                   true,
                   sampler,
                   new Uint8Array([linearToSrgbByte(f[0]), linearToSrgbByte(f[1]), linearToSrgbByte(f[2]), Math.round(Math.max(0, Math.min(1, f[3])) * 255)])
               );
           })();
-    const normalTexture = mat.normalImage ? uploadTex(device, mat.normalImage, false, sampler) : undefined;
-    const emissiveTexture = mat.emissiveImage ? uploadTex(device, mat.emissiveImage, true, sampler) : undefined;
-    const specGlossTexture = mat.specGlossImage ? uploadTex(device, mat.specGlossImage, true, sampler) : undefined;
+    const normalTexture = mat.normalImage ? uploadTex(engine, mat.normalImage, false, sampler) : undefined;
+    const emissiveTexture = mat.emissiveImage ? uploadTex(engine, mat.emissiveImage, true, sampler) : undefined;
+    const specGlossTexture = mat.specGlossImage ? uploadTex(engine, mat.specGlossImage, true, sampler) : undefined;
 
     // ORM
     const mrImg = mat.metallicRoughnessImage;
@@ -81,12 +83,12 @@ async function buildPbr(device: GPUDevice, mat: GltfMaterialData, sampler: GPUSa
         }
         x1.putImageData(d1, 0, 0);
         const bmp = await createImageBitmap(c1);
-        ormTexture = uploadTex(device, bmp, false, sampler);
+        ormTexture = uploadTex(engine, bmp, false, sampler);
     } else if (mrImg ?? occImg) {
-        ormTexture = uploadTex(device, (mrImg ?? occImg)!, false, sampler);
+        ormTexture = uploadTex(engine, (mrImg ?? occImg)!, false, sampler);
     } else {
         const clamp = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255);
-        ormTexture = uploadTex(device, null, false, sampler, new Uint8Array([255, clamp(mat.roughnessFactor), clamp(mat.metallicFactor), 255]));
+        ormTexture = uploadTex(engine, null, false, sampler, new Uint8Array([255, clamp(mat.roughnessFactor), clamp(mat.metallicFactor), 255]));
     }
 
     return {
@@ -114,14 +116,14 @@ export async function loadVariantMaterials(
     baseUrl: string,
     variantNames: string[],
     meshes: Mesh[],
-    device: GPUDevice
+    engine: EngineContextInternal
 ): Promise<MaterialVariantData> {
     // Ensure mipmap module is loaded
     if (!_generateMipmaps) {
         _generateMipmaps = (await import("../texture/generate-mipmaps.js")).generateMipmaps;
     }
 
-    const sampler = getOrCreateSampler(device, {
+    const sampler = getOrCreateSampler(engine, {
         magFilter: "linear",
         minFilter: "linear",
         mipmapFilter: "linear",
@@ -147,7 +149,7 @@ export async function loadVariantMaterials(
     const getPbr = (gltfMat: GltfMaterialData): Promise<PbrMaterialPropsInternal> => {
         let p = pbrCache.get(gltfMat);
         if (!p) {
-            p = buildPbr(device, gltfMat, sampler);
+            p = buildPbr(engine, gltfMat, sampler);
             pbrCache.set(gltfMat, p);
         }
         return p;
