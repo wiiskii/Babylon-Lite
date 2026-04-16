@@ -44,15 +44,30 @@ for (const file of files) {
         const cAttrs = caseMatch[1];
         const cBody = caseMatch[2];
 
-        const failMatch = cBody.match(/<failure[^>]*?(?:message="([^"]*)")?[^>]*>/);
-        const errMatch = cBody.match(/<error[^>]*?(?:message="([^"]*)")?[^>]*>/);
+        const failMatch = cBody.match(/<failure[^>]*?(?:message="([^"]*)")?[^>]*>([\s\S]*?)<\/failure>/);
+        const errMatch = cBody.match(/<error[^>]*?(?:message="([^"]*)")?[^>]*>([\s\S]*?)<\/error>/);
 
         if (failMatch || errMatch) {
             const name = attr(cAttrs, "name");
-            const msg = failMatch?.[1] ?? errMatch?.[1] ?? "Test failed";
-            // Escape newlines and semicolons for vso commands
-            const safeMsg = msg.replace(/\r?\n/g, " ").replace(/;/g, ",").slice(0, 500);
-            console.log(`##vso[task.logissue type=error]${name}: ${safeMsg}`);
+            const msgAttr = failMatch?.[1] ?? errMatch?.[1] ?? "";
+            const bodyText = (failMatch?.[2] ?? errMatch?.[2] ?? "").trim();
+            // Prefer body text (has full error + expected/received), fall back to message attr
+            const raw = bodyText || msgAttr || "Test failed";
+            // Decode XML entities, strip stack traces, collapse whitespace
+            const decoded = raw
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .replace(/&amp;/g, "&")
+                .replace(/&quot;/g, '"')
+                .replace(/&#10;/g, " ")
+                .replace(/&#13;/g, "")
+                .replace(/\s+at\s+.*/g, "") // strip stack trace lines
+                .replace(/\r?\n/g, " ")
+                .replace(/;/g, ",")
+                .replace(/\s{2,}/g, " ")
+                .trim()
+                .slice(0, 800);
+            console.log(`##vso[task.logissue type=error]${name}: ${decoded}`);
         }
     }
 }

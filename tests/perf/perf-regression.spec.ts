@@ -230,7 +230,7 @@ if (!hasBaseline) {
                 // (a single GC pause creates 30%+ swings). p95 is still logged for visibility.
                 expect(
                     avgDeltaPct,
-                    `Frame avg regressed ${avgDeltaPct.toFixed(1)}% vs baseline (${current.avgMs}ms vs ${baseline.avgMs}ms), limit: +${REGRESSION_PCT}%`
+                    `Avg ${current.avgMs}ms vs baseline ${baseline.avgMs}ms (+${avgDeltaPct.toFixed(1)}%, limit: +${REGRESSION_PCT}%) | p95: ${current.p95Ms}ms vs ${baseline.p95Ms}ms (+${p95DeltaPct.toFixed(1)}%) | median: ${current.medianMs}ms vs ${baseline.medianMs}ms`
                 ).toBeLessThanOrEqual(REGRESSION_PCT);
             });
         }

@@ -6,6 +6,7 @@ dist/
 our-render*
 our-*
 test-actual.png
+diff-map.png
 capture.json
 capture-full.json
 reference/**/babylon-ref-golden.png
