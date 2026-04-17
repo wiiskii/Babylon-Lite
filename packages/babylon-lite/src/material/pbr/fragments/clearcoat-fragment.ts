@@ -42,7 +42,7 @@ let cc_duv2 = dpdy(input.uv);
 let cc_dp2perp = cross(cc_dp2, N_geom);
 let cc_dp1perp = cross(N_geom, cc_dp1);
 let cc_tFrame = cc_dp2perp * cc_duv1.x + cc_dp1perp * cc_duv2.x;
-let cc_bFrame = cc_dp2perp * cc_duv1.y + cc_dp1perp * cc_duv2.y;
+let cc_bFrame = -(cc_dp2perp * cc_duv1.y + cc_dp1perp * cc_duv2.y);
 let cc_det = max(dot(cc_tFrame, cc_tFrame), dot(cc_bFrame, cc_bFrame));
 let cc_invmax = select(inverseSqrt(cc_det), 0.0, cc_det == 0.0);
 let cc_frame = mat3x3<f32>(cc_tFrame * cc_invmax, cc_bFrame * cc_invmax, N_geom);
@@ -89,7 +89,9 @@ let ccAlphaG_dl = ccRough_dl * ccRough_dl + 0.0005;
 ${ccAngles}
 let ccD_dl = distributionGGX(ccNdotH_dl, ccAlphaG_dl);
 let ccVis_dl = visibility_Kelemen(ccVdotH_dl);
-let ccFresnel_dl = ccF0_dl + (1.0 - ccF0_dl) * pow(1.0 - ccVdotH_dl, 5.0);
+let cc_t_dl = 1.0 - ccVdotH_dl;
+let cc_t2_dl = cc_t_dl * cc_t_dl;
+let ccFresnel_dl = ccF0_dl + (1.0 - ccF0_dl) * (cc_t2_dl * cc_t2_dl * cc_t_dl);
 let ccTerm = ccFresnel_dl * ccD_dl * ccVis_dl * ccNdotL_dl;
 ccDirectSpecularTerm = vec3<f32>(ccTerm) * lightColor * lightAtten * material.directIntensity * ccInt_dl;
 ccDirectAttenuation = 1.0 - ccFresnel_dl * ccInt_dl;
@@ -105,10 +107,10 @@ function makeIblMod(hasIntensityMap: boolean, hasRoughnessMap: boolean, hasNorma
     const reflDir = hasNormalMap
         ? `let ccR_raw = reflect(-V, ccN);
 let ccR_ibl = rotateY(ccR_raw, scene.envRotationY);
-let ccNdotV_ibl = clamp(abs(dot(ccN, V)) + 0.0000001, 0.0, 1.0);`
+let ccNdotV_ibl = abs(dot(ccN, V)) + 0.0000001;`
         : `let ccR_raw = reflect(-V, N_geom);
 let ccR_ibl = rotateY(ccR_raw, scene.envRotationY);
-let ccNdotV_ibl = clamp(abs(dot(N_geom, V)) + 0.0000001, 0.0, 1.0);`;
+let ccNdotV_ibl = abs(dot(N_geom, V)) + 0.0000001;`;
     const ccNormalForAA = hasNormalMap ? "ccN" : "N_geom";
     const alphaG = hasSpecularAA
         ? `let ccAlphaG_ibl_base = ccRough_ibl * ccRough_ibl + 0.0005;
@@ -128,7 +130,9 @@ var ccSpecLod_ibl = log2(cubemapDim * ccAlphaG_ibl) * scene.lodGenerationScale;
 let ccEnvRadiance_ibl = textureSampleLevel(iblTexture, iblSampler, ccR_ibl, clamp(ccSpecLod_ibl, 0.0, maxLod)).rgb * material.environmentIntensity;
 let ccBrdf_ibl = textureSample(brdfLUT, brdfSampler_, vec2<f32>(ccNdotV_ibl, ccRough_ibl)).rgb;
 let ccSpecEnvRefl = (vec3<f32>(ccF0_ibl) * ccBrdf_ibl.y + (vec3<f32>(1.0) - vec3<f32>(ccF0_ibl)) * ccBrdf_ibl.x) * ccInt_ibl;
-let ccFresnelIBL = ccF0_ibl + (1.0 - ccF0_ibl) * pow(1.0 - ccNdotV_ibl, 5.0);
+let cc_t_ibl = 1.0 - ccNdotV_ibl;
+let cc_t2_ibl = cc_t_ibl * cc_t_ibl;
+let ccFresnelIBL = ccF0_ibl + (1.0 - ccF0_ibl) * (cc_t2_ibl * cc_t2_ibl * cc_t_ibl);
 let ccConservation_ibl = 1.0 - ccFresnelIBL * ccInt_ibl;
 let ccFinalRadiance_ibl = ccEnvRadiance_ibl * ccSpecEnvRefl;
 color = finalIrradiance * ccConservation_ibl
@@ -148,7 +152,9 @@ function makeNonIblMod(hasIntensityMap: boolean): string {
 {
 let ccF0_noIbl = material.ccRefractionParams.x;
 let ccInt_noIbl = ${intensityExpr};
-let ccFresnelNoIbl = ccF0_noIbl + (1.0 - ccF0_noIbl) * pow(1.0 - NdotV, 5.0);
+let cc_t_noIbl = 1.0 - NdotV;
+let cc_t2_noIbl = cc_t_noIbl * cc_t_noIbl;
+let ccFresnelNoIbl = ccF0_noIbl + (1.0 - ccF0_noIbl) * (cc_t2_noIbl * cc_t2_noIbl * cc_t_noIbl);
 let ccCons_noIbl = 1.0 - ccFresnelNoIbl * ccInt_noIbl;
 let attColor = (color - emissive) * ccCons_noIbl + emissive + ccDirectSpecularTerm;
 color = attColor;

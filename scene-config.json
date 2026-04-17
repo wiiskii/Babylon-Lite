@@ -277,10 +277,10 @@
         "id": 28,
         "slug": "scene28-clearcoat-gltf",
         "name": "Scene 28 — Clearcoat glTF",
-        "maxMad": 1.0,
+        "maxMad": 0.02,
         "maxRawKB": 105,
         "maxGzipKB": 40,
-        "description": "ClearCoatTest.gltf (three spheres) with default environment (IBL only). Matches PG #YG3BBF#33.",
-        "tags": ["pbr", "gltf", "env"]
+        "description": "ClearCoatTest.gltf (6×3 grid: clearcoat variants) with default environment (IBL only). Matches PG #YG3BBF#33.",
+        "tags": ["pbr", "gltf", "env", "clearcoat"]
     }
 ]
