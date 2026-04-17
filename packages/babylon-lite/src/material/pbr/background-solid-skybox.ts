@@ -17,6 +17,7 @@ import { createStandardPipelineDescriptor } from "../../render/scene-helpers.js"
 import { WGSL_SCENE_UNIFORMS_PBR, WGSL_DITHER } from "../../shader/wgsl-helpers.js";
 import { createSkyboxBuffers, buildSkyboxWorldMatrix } from "./skybox-geometry.js";
 import { createUniformBuffer } from "../../resource/gpu-buffers.js";
+import { createSingleUniformBGL } from "../../shader/bgl-helpers.js";
 
 const SKY_MESH_UNIFORM_SIZE = 96; // mat4x4 + primaryColor vec3 + pad + skyOutputColor vec3 + pad
 
@@ -35,10 +36,7 @@ function createSkyboxMaterial(sceneBindGroupLayout: GPUBindGroupLayout): SkyboxM
         if (layout && _cachedDevice === device) {
             return layout;
         }
-        layout = device.createBindGroupLayout({
-            label: "skybox-material",
-            entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } }],
-        });
+        layout = createSingleUniformBGL(engine, "skybox-material", GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT);
         return layout;
     }
 

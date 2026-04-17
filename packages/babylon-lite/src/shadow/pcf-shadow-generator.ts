@@ -37,6 +37,7 @@ import depthVertSrc from "../../shaders/shadow-pcf-depth.vertex.wgsl?raw";
 import { registerPcfShadowShader } from "../material/standard/standard-pipeline.js";
 import { registerPcfShadowBgl } from "../material/standard/standard-pipeline.js";
 import { WGSL_SCENE_UNIFORMS_SHADOW } from "../shader/wgsl-helpers.js";
+import { createSingleUniformBGL } from "../shader/bgl-helpers.js";
 
 // ─── PCF Shader Fragments (bundled only when PCF is used) ──────────
 
@@ -136,10 +137,7 @@ export function createPcfShadowGenerator(engine: EngineContext, light: SpotLight
     const { viewProj } = computeSpotLightMatrix(light, near, far);
 
     // --- Depth pipeline BGL (needed before buildCasters) ---
-    const depthMeshBGL = device.createBindGroupLayout({
-        label: "pcf-depth-mesh",
-        entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: "uniform" } }],
-    });
+    const depthMeshBGL = createSingleUniformBGL(eng, "pcf-depth-mesh", GPUShaderStage.VERTEX);
 
     // Build caster data + per-caster bind groups
     const casters = buildCasters(eng, casterMeshes, depthMeshBGL);

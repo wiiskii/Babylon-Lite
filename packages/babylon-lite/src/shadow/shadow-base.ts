@@ -12,6 +12,7 @@ import type { Mesh } from "../mesh/mesh.js";
 import type { MeshInternal } from "../mesh/mesh.js";
 import type { EngineContextInternal } from "../engine/engine.js";
 import { createUniformBuffer } from "../resource/gpu-buffers.js";
+import { createSingleUniformBGL } from "../shader/bgl-helpers.js";
 
 export interface ShadowCaster {
     positionBuffer: GPUBuffer;
@@ -136,10 +137,7 @@ export function multiply4x4(a: Float32Array, b: Float32Array): Float32Array {
 
 /** Create the shared depth-scene BGL (single uniform at binding 0, vertex stage). */
 export function createDepthSceneBGL(engine: EngineContextInternal, label: string): GPUBindGroupLayout {
-    return engine.device.createBindGroupLayout({
-        label,
-        entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: "uniform" } }],
-    });
+    return createSingleUniformBGL(engine, label, GPUShaderStage.VERTEX);
 }
 
 /** Create the shared shadow-params UBO (32 bytes) holding bias/depthScale/depth-range fields. */
