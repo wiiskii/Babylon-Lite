@@ -9,7 +9,7 @@ import type { EnvironmentTextures } from "../../loader-env/load-env.js";
 import type { Renderable } from "../../render/renderable.js";
 import { createSkyboxBuffers, buildSkyboxWorldMatrix } from "./skybox-geometry.js";
 import { createCubemapSkyboxMaterial } from "./cubemap-skybox-material.js";
-import { computeSkyboxGeometry } from "./background-renderable.js";
+import { computeSkyboxGeometry } from "./skybox-geometry.js";
 import skyboxVertSrc from "../../../shaders/skybox.vertex.wgsl?raw";
 import skyboxHdrFragSrc from "../../../shaders/skybox-hdr.fragment.wgsl?raw";
 import { WGSL_SCENE_UNIFORMS_PBR } from "../../shader/wgsl-helpers.js";

@@ -5,7 +5,7 @@ import type { SceneContext } from "../../scene/scene.js";
 import type { EngineContextInternal } from "../../engine/engine.js";
 import type { Renderable } from "../../render/renderable.js";
 import { getOrCreateSampler } from "../../resource/gpu-pool.js";
-import { computeSkyboxGeometry } from "./background-renderable.js";
+import { computeSkyboxGeometry } from "./skybox-geometry.js";
 import { createSkyboxBuffers, buildSkyboxWorldMatrix } from "./skybox-geometry.js";
 import { createCubemapSkyboxMaterial } from "./cubemap-skybox-material.js";
 import { WGSL_SCENE_UNIFORMS_PBR, WGSL_DITHER } from "../../shader/wgsl-helpers.js";

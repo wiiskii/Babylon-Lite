@@ -143,14 +143,16 @@ export function prefilterCubemapGPU(engine: EngineContextInternal, srcCube: GPUT
 // ─── BRDF LUT ───────────────────────────────────────────────────────────────
 
 let _brdfPipeline: GPUComputePipeline | null = null;
+let _brdfPipelineDevice: GPUDevice | null = null;
 
 export function generateBrdfLut(engine: EngineContextInternal): GPUTexture {
     const device = engine.device;
-    if (!_brdfPipeline) {
+    if (!_brdfPipeline || _brdfPipelineDevice !== device) {
         _brdfPipeline = device.createComputePipeline({
             layout: "auto",
             compute: { module: device.createShaderModule({ code: brdfLutWGSL }), entryPoint: "main" },
         });
+        _brdfPipelineDevice = device;
     }
     const size = 256;
     const texture = device.createTexture({
