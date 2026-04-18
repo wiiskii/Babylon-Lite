@@ -18,6 +18,7 @@
  */
 
 import type { ShaderFragment } from "../../../shader/fragment-types.js";
+import type { PbrMaterialProps, ClearCoatProps } from "../pbr-material.js";
 
 const CC_HELPERS = `
 fn visibility_Kelemen(VdotH_kl: f32) -> f32 {
@@ -218,4 +219,23 @@ export function createClearcoatFragment(
 
         fragmentSlots: slots,
     };
+}
+
+/** Write the clearcoat material-UBO slice (ccParams + ccParams2). */
+export function writeClearcoatUBO(data: Float32Array, material: PbrMaterialProps, offsets: ReadonlyMap<string, number>): void {
+    const cc = material.clearCoat as ClearCoatProps | undefined;
+    if (!cc?.isEnabled || !offsets.has("ccParams")) {
+        return;
+    }
+    const off = offsets.get("ccParams")! / 4;
+    const ior = cc.indexOfRefraction ?? 1.5;
+    const a = 1 - ior;
+    const b = 1 + ior;
+    data[off] = cc.intensity ?? 1.0;
+    data[off + 1] = cc.roughness ?? 0.0;
+    data[off + 2] = cc.bumpTextureScale ?? 1.0;
+    data[off + 4] = Math.pow(-a / b, 2);
+    data[off + 5] = 1 / ior;
+    data[off + 6] = a;
+    data[off + 7] = b;
 }

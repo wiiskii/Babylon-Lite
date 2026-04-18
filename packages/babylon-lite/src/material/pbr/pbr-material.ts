@@ -83,6 +83,13 @@ export interface PbrMaterialProps {
      *  where the mesh surrounds the camera and should display the environment directly.
      *  Also zeroes SH irradiance — skybox is pure cubemap + BRDF only. */
     skyboxMode?: boolean;
+    /** Material-wide UV transform (scale + offset), applied in the vertex shader
+     *  before emitting `out.uv`. Mirrors BJS `Texture.uScale/vScale/uOffset/vOffset`
+     *  when all textures on the material share the same transform (common case).
+     *  Format: `[uScale, vScale, uOffset, vOffset]`. Absence = identity.
+     *  Set by the glTF loader from `KHR_texture_transform` when every textureInfo
+     *  on a material declares the same transform. */
+    uvTransformST?: [number, number, number, number];
 }
 
 /** @internal Extended PbrMaterialProps with internal build group. */
@@ -129,6 +136,11 @@ export interface SheenProps {
     intensity?: number;
     /** Optional sheen tint texture (modulates sheen color). Loaded via loadTexture2D(). */
     texture?: Texture2D;
+    /** When true (recommended for glTF), applies proper sheen albedo scaling
+     *  on the base layer and treats the sheen texture as already-linear (no pow).
+     *  When false (default, legacy), applies pow(rgb, 2.2) to the sheen texture
+     *  and uses a (1-F0) attenuation on the sheen lobe without base-layer scaling. */
+    albedoScaling?: boolean;
 }
 
 /** Anisotropy layer properties. Maps to BJS PBRMaterial.anisotropy sub-object.
