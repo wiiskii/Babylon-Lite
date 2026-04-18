@@ -16,15 +16,17 @@ export interface GltfMatExtCtx {
     /** Fetch + upload a texture from a glTF textureInfo object.
      *  Returns undefined if texInfo is null/undefined. */
     texture(texInfo: unknown, sRGB: boolean): Promise<Texture2D | undefined>;
+    /** Upload an arbitrary ImageBitmap (e.g. composited bitmap from an ext). */
+    uploadImage(bitmap: ImageBitmap, sRGB: boolean): Texture2D;
 }
 
-/** A glTF KHR material extension. One module per extension. */
+/** A glTF material extension. One module per extension, dynamically loaded. */
 export interface GltfMatExt {
-    /** Canonical KHR id, e.g. "KHR_materials_clearcoat". */
+    /** Canonical id, e.g. "KHR_materials_clearcoat". Used only for diagnostics. */
     id: string;
-    /** Build a partial PbrMaterialProps fragment from one raw glTF material def.
-     *  Return null when this material doesn't carry the extension. */
-    apply(rawMat: any, ctx: GltfMatExtCtx): Promise<Partial<PbrMaterialProps> | null>;
+    /** Build a partial PbrMaterialProps fragment for one assembled glTF material.
+     *  Return null when this material doesn't trigger the extension. */
+    apply(mat: GltfMaterialData, ctx: GltfMatExtCtx): Promise<Partial<PbrMaterialProps> | null>;
 }
 
 /** Parsed core PBR material data. */
@@ -44,11 +46,9 @@ export interface GltfMaterialData {
     alphaMode: string;
     /** glTF alphaCutoff for MASK mode (default 0.5). */
     alphaCutoff: number;
-    /** Raw glTF material definition. Always set so ext driver + uv-transform
-     *  chunk can finish setup at upload time. */
+    /** Raw glTF material definition. Always set so ext modules can read raw
+     *  extension data + KHR_texture_transform from texture infos. */
     _rawMatDef?: any;
-    /** True when the owning glTF asset's `extensionsUsed` lists KHR_texture_transform. */
-    _usesUvTransform?: boolean;
 }
 
 /** Assemble core PBR material data from a glTF material definition.
@@ -92,8 +92,6 @@ export async function assembleMaterial(
         fetchImg(mat.emissiveTexture),
     ]);
 
-    const usesUvTransform = json.extensionsUsed?.includes("KHR_texture_transform") === true;
-
     return {
         baseColorFactor: pbr.baseColorFactor ?? [1, 1, 1, 1],
         metallicFactor: pbr.metallicFactor ?? 1,
@@ -108,7 +106,6 @@ export async function assembleMaterial(
         alphaMode: mat.alphaMode ?? "OPAQUE",
         alphaCutoff: mat.alphaCutoff ?? 0.5,
         _rawMatDef: mat,
-        _usesUvTransform: usesUvTransform || undefined,
     };
 }
 

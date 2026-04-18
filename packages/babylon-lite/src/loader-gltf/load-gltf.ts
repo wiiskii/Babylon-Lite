@@ -146,21 +146,46 @@ export async function loadGltf(engine: EngineContext, url: string): Promise<Asse
 
 // --- glTF Material Extension Driver ---
 
-/** Map of KHR ext id → dynamic-import factory. The registry lives here (not at
- *  module load) so unknown exts contribute zero bytes to the eager bundle.
- *  Adding a new material extension is a 2-line change: add an entry here and
- *  create a `gltf-ext-<name>.ts` module that default-exports a `GltfMatExt`. */
-const _matExtLoaders: Record<string, () => Promise<{ default: GltfMatExt }>> = {
-    KHR_materials_clearcoat: () => import("./gltf-ext-clearcoat.js"),
-    KHR_materials_sheen: () => import("./gltf-ext-sheen.js"),
-    KHR_materials_anisotropy: () => import("./gltf-ext-anisotropy.js"),
-    KHR_materials_pbrSpecularGlossiness: () => import("./gltf-ext-spec-gloss.js"),
-};
+/** A glTF feature loader: per-asset gating + dynamic-import. Drives every
+ *  material extension uniformly (KHR exts, UV transform, ORM compositing).
+ *  Unknown features contribute zero bytes when their `needs(json)` returns false. */
+interface GltfFeatureLoader {
+    needs(json: any): boolean;
+    load(): Promise<{ default: GltfMatExt }>;
+}
 
-/** Dynamic-import every material ext referenced in the asset's `extensionsUsed`. */
+const hasExt =
+    (id: string) =>
+    (json: any): boolean =>
+        json.extensionsUsed?.includes(id) === true;
+
+/** Asset has at least one material that needs ORM compositing
+ *  (separate metallicRoughnessTexture + occlusionTexture pointing at different images). */
+function needsOrmComposite(json: any): boolean {
+    const mats = json.materials ?? [];
+    const textures = json.textures ?? [];
+    for (const m of mats) {
+        const mr = m.pbrMetallicRoughness?.metallicRoughnessTexture;
+        const occ = m.occlusionTexture;
+        if (mr && occ && textures[mr.index]?.source !== textures[occ.index]?.source) {
+            return true;
+        }
+    }
+    return false;
+}
+
+const _features: GltfFeatureLoader[] = [
+    { needs: hasExt("KHR_materials_clearcoat"), load: () => import("./gltf-ext-clearcoat.js") },
+    { needs: hasExt("KHR_materials_sheen"), load: () => import("./gltf-ext-sheen.js") },
+    { needs: hasExt("KHR_materials_anisotropy"), load: () => import("./gltf-ext-anisotropy.js") },
+    { needs: hasExt("KHR_materials_pbrSpecularGlossiness"), load: () => import("./gltf-ext-spec-gloss.js") },
+    { needs: hasExt("KHR_texture_transform"), load: () => import("./gltf-ext-uv-transform.js") },
+    { needs: needsOrmComposite, load: () => import("./gltf-ext-orm.js") },
+];
+
+/** Dynamic-import every material ext that the asset triggers. */
 async function loadGltfMatExts(json: any): Promise<GltfMatExt[]> {
-    const used: string[] = json.extensionsUsed ?? [];
-    const mods = await Promise.all(used.flatMap((id) => (_matExtLoaders[id] ? [_matExtLoaders[id]!()] : [])));
+    const mods = await Promise.all(_features.flatMap((f) => (f.needs(json) ? [f.load()] : [])));
     return mods.map((m) => m.default);
 }
 
@@ -366,20 +391,14 @@ async function uploadMeshes(engine: EngineContextInternal, meshDatas: GltfMeshDa
     // Pre-load dynamic imports once before the mesh loop
     const needsSkeleton = meshDatas.some((m) => m.joints && m.weights && m.skin);
     const needsMorph = meshDatas.some((m) => m.morphTargets && m.morphTargets.length > 0);
-    const needsOrmComposite = meshDatas.some((m) => {
-        const mat = m.material;
-        return !!(mat.metallicRoughnessImage && mat.occlusionImage && mat.metallicRoughnessImage !== mat.occlusionImage);
-    });
-    const [, skelMods, morphMod, ormMod] = await Promise.all([
+    const [, skelMods, morphMod] = await Promise.all([
         ensureMipmapModule(),
         needsSkeleton ? Promise.all([import("./gltf-animation.js"), import("../skeleton/create-skeleton.js")]) : null,
         needsMorph ? import("../morph/create-morph-targets.js") : null,
-        needsOrmComposite ? import("./gltf-orm-composite.js") : null,
     ]);
     const computeBoneTextureDataFn = skelMods?.[0].computeBoneTextureData ?? null;
     const createSkeletonFn = skelMods?.[1].createSkeleton ?? null;
     const createMorphTargetsFn = morphMod?.createMorphTargets ?? null;
-    const compositeOrmFn = ormMod?.compositeOrm ?? null;
 
     // Texture cache: shared textures uploaded once, keyed by (bitmap, srgb)
     const texCache = new Map<string, Texture2D>();
@@ -415,22 +434,28 @@ async function uploadMeshes(engine: EngineContextInternal, meshDatas: GltfMeshDa
             const img = await extFetchImg(texInfo);
             return img ? getCachedTexture(img, sRGB) : undefined;
         },
+        uploadImage(bitmap, sRGB) {
+            return uploadTextureSynced(engine, bitmap, sRGB, sampler);
+        },
     };
 
-    function getOrmTexture(mat: GltfMaterialData): Promise<Texture2D> | Texture2D {
-        const mrImg = mat.metallicRoughnessImage;
-        const occImg = mat.occlusionImage;
-        if (mrImg && occImg && mrImg !== occImg && compositeOrmFn) {
-            // Separate MR + occlusion: composite R=occlusion into MR texture (dyn-imported)
-            return compositeOrmFn(mrImg, occImg).then((bmp) => uploadTextureSynced(engine, bmp, false, sampler));
-        } else if (mrImg ?? occImg) {
-            return getCachedTexture((mrImg ?? occImg)!, false);
-        } else {
-            const rf = mat.roughnessFactor,
-                mf = mat.metallicFactor;
+    /** Default ORM upload: single MR-or-occlusion image, or 1×1 fallback baked from
+     *  metallicFactor/roughnessFactor. The composite case (MR+occlusion separate) is
+     *  handled by the gltf-ext-orm extension which overrides this via `extLayers`. */
+    function getDefaultOrmTexture(mat: GltfMaterialData): Texture2D {
+        const single = mat.metallicRoughnessImage ?? mat.occlusionImage;
+        if (single && (!mat.metallicRoughnessImage || !mat.occlusionImage || mat.metallicRoughnessImage === mat.occlusionImage)) {
+            return getCachedTexture(single, false);
+        }
+        if (!single) {
+            const rf = mat.roughnessFactor;
+            const mf = mat.metallicFactor;
             const clampByte = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255);
             return uploadTextureSynced(engine, null, false, sampler, new Uint8Array([255, clampByte(rf), clampByte(mf), 255]));
         }
+        // Separate MR + occlusion: ext will override, but we need a non-null
+        // placeholder until then — return the MR image as a sensible default.
+        return getCachedTexture(mat.metallicRoughnessImage!, false);
     }
 
     // Build a PbrMaterialPropsInternal from parsed glTF material data.
@@ -451,26 +476,20 @@ async function uploadMeshes(engine: EngineContextInternal, meshDatas: GltfMeshDa
                   })();
             const normalTexture = mat.normalImage ? getCachedTexture(mat.normalImage, false) : undefined;
             const emissiveTexture = mat.emissiveImage ? getCachedTexture(mat.emissiveImage, true) : undefined;
-            const ormTexture = await getOrmTexture(mat);
+            const ormTexture = getDefaultOrmTexture(mat);
 
-            // Run all registered material exts: each ext fetches+uploads its
-            // own textures via the shared ctx, then we merge each returned
-            // PbrMaterialProps fragment onto the base material.
+            // Run all material exts (KHR_*, UV transform, ORM compositing).
+            // Each ext may return a partial PbrMaterialProps; later layers override
+            // earlier ones, so e.g. the ORM ext can replace the default ormTexture.
             let extLayers: Partial<import("../material/pbr/pbr-material.js").PbrMaterialProps> | undefined;
-            if (matExts.length > 0 && mat._rawMatDef?.extensions) {
-                const fragments = await Promise.all(matExts.map((ext) => ext.apply(mat._rawMatDef, extCtx)));
+            if (matExts.length > 0) {
+                const fragments = await Promise.all(matExts.map((ext) => ext.apply(mat, extCtx)));
                 for (const f of fragments) {
                     if (f) {
                         extLayers ??= {};
                         Object.assign(extLayers, f);
                     }
                 }
-            }
-
-            let uvTransformST: [number, number, number, number] | undefined;
-            if (mat._usesUvTransform) {
-                const uvMod = await import("./gltf-uv-transform.js");
-                uvTransformST = uvMod.resolveMaterialUvTransform(mat._rawMatDef);
             }
 
             return {
@@ -485,7 +504,6 @@ async function uploadMeshes(engine: EngineContextInternal, meshDatas: GltfMeshDa
                 ...(mat.metallicRoughnessImage ? { metallicFactor: mat.metallicFactor, roughnessFactor: mat.roughnessFactor } : undefined),
                 enableSpecularAA: true,
                 ...(mat.alphaMode === "BLEND" ? { alphaBlend: true, alpha: mat.baseColorFactor[3] } : undefined),
-                ...(uvTransformST ? { uvTransformST } : undefined),
                 ...extLayers,
                 _buildGroup: pbrGroupBuilder,
             } satisfies PbrMaterialPropsInternal;

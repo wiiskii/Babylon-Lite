@@ -20,7 +20,7 @@ import type { PbrMaterialProps } from "../material/pbr/pbr-material.js";
 const ext: GltfMatExt = {
     id: "KHR_materials_pbrSpecularGlossiness",
     async apply(mat, ctx) {
-        const sg = mat.extensions?.KHR_materials_pbrSpecularGlossiness;
+        const sg = mat._rawMatDef?.extensions?.KHR_materials_pbrSpecularGlossiness;
         if (!sg) {
             return null;
         }

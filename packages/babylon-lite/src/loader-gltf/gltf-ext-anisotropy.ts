@@ -4,7 +4,7 @@ import type { GltfMatExt } from "./gltf-material.js";
 const ext: GltfMatExt = {
     id: "KHR_materials_anisotropy",
     async apply(mat) {
-        const a = mat.extensions?.KHR_materials_anisotropy;
+        const a = mat._rawMatDef?.extensions?.KHR_materials_anisotropy;
         if (!a) {
             return null;
         }

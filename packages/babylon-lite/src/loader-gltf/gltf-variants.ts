@@ -60,16 +60,13 @@ async function buildPbr(
     const normalTexture = mat.normalImage ? uploadTex(engine, mat.normalImage, false, sampler) : undefined;
     const emissiveTexture = mat.emissiveImage ? uploadTex(engine, mat.emissiveImage, true, sampler) : undefined;
 
-    // ORM
-    const mrImg = mat.metallicRoughnessImage;
-    const occImg = mat.occlusionImage;
+    // Default ORM: single image or 1×1 fallback. The composite case
+    // (separate MR + occlusion) is handled by the gltf-ext-orm extension,
+    // whose returned `ormTexture` overrides this baseline via `extLayers`.
+    const single = mat.metallicRoughnessImage ?? mat.occlusionImage;
     let ormTexture;
-    if (mrImg && occImg && mrImg !== occImg) {
-        const { compositeOrm } = await import("./gltf-orm-composite.js");
-        const bmp = await compositeOrm(mrImg, occImg);
-        ormTexture = uploadTex(engine, bmp, false, sampler);
-    } else if (mrImg ?? occImg) {
-        ormTexture = uploadTex(engine, (mrImg ?? occImg)!, false, sampler);
+    if (single) {
+        ormTexture = uploadTex(engine, single, false, sampler);
     } else {
         const clamp = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255);
         ormTexture = uploadTex(engine, null, false, sampler, new Uint8Array([255, clamp(mat.roughnessFactor), clamp(mat.metallicFactor), 255]));
@@ -89,12 +86,12 @@ async function buildPbr(
     } satisfies PbrMaterialPropsInternal;
 }
 
-/** Drive all registered exts on one variant material's raw def. */
-async function buildExtLayers(rawMat: any, exts: GltfMatExt[], ctx: GltfMatExtCtx): Promise<Partial<PbrMaterialProps> | undefined> {
-    if (!rawMat?.extensions || exts.length === 0) {
+/** Drive all registered exts on one assembled variant material. */
+async function buildExtLayers(mat: GltfMaterialData, exts: GltfMatExt[], ctx: GltfMatExtCtx): Promise<Partial<PbrMaterialProps> | undefined> {
+    if (exts.length === 0) {
         return undefined;
     }
-    const fragments = await Promise.all(exts.map((ext) => ext.apply(rawMat, ctx)));
+    const fragments = await Promise.all(exts.map((ext) => ext.apply(mat, ctx)));
     let layers: Partial<PbrMaterialProps> | undefined;
     for (const f of fragments) {
         if (f) {
@@ -145,6 +142,9 @@ export async function loadVariantMaterials(
             const img = await fetchImg(texInfo);
             return img ? uploadTex(engine, img, sRGB, sampler) : undefined;
         },
+        uploadImage(bitmap, sRGB) {
+            return uploadTex(engine, bitmap, sRGB, sampler);
+        },
     };
     const getMat = (matIdx: number): Promise<GltfMaterialData> => {
         let p = matCache.get(matIdx);
@@ -157,11 +157,11 @@ export async function loadVariantMaterials(
 
     // Cache for uploaded PBR materials (by GltfMaterialData identity)
     const pbrCache = new Map<GltfMaterialData, Promise<PbrMaterialPropsInternal>>();
-    const getPbr = (gltfMat: GltfMaterialData, matIdx: number): Promise<PbrMaterialPropsInternal> => {
+    const getPbr = (gltfMat: GltfMaterialData): Promise<PbrMaterialPropsInternal> => {
         let p = pbrCache.get(gltfMat);
         if (!p) {
             p = (async () => {
-                const layers = await buildExtLayers(json.materials?.[matIdx], exts, extCtx);
+                const layers = await buildExtLayers(gltfMat, exts, extCtx);
                 return buildPbr(engine, gltfMat, sampler, layers);
             })();
             pbrCache.set(gltfMat, p);
@@ -190,7 +190,7 @@ export async function loadVariantMaterials(
                 originals.push({ mesh, material: mesh.material });
                 for (const mapping of variantExt.mappings as { material: number; variants: number[] }[]) {
                     const gltfMat = await getMat(mapping.material);
-                    const pbrMat = await getPbr(gltfMat, mapping.material);
+                    const pbrMat = await getPbr(gltfMat);
                     for (const vi of mapping.variants) {
                         const name = variantNames[vi];
                         if (name) {

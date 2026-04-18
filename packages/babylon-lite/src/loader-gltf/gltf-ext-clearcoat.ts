@@ -4,7 +4,7 @@ import type { GltfMatExt } from "./gltf-material.js";
 const ext: GltfMatExt = {
     id: "KHR_materials_clearcoat",
     async apply(mat, ctx) {
-        const c = mat.extensions?.KHR_materials_clearcoat;
+        const c = mat._rawMatDef?.extensions?.KHR_materials_clearcoat;
         if (!c) {
             return null;
         }

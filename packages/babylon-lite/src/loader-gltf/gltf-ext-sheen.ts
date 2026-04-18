@@ -8,7 +8,7 @@ import type { GltfMatExt } from "./gltf-material.js";
 const ext: GltfMatExt = {
     id: "KHR_materials_sheen",
     async apply(mat, ctx) {
-        const s = mat.extensions?.KHR_materials_sheen;
+        const s = mat._rawMatDef?.extensions?.KHR_materials_sheen;
         if (!s) {
             return null;
         }
