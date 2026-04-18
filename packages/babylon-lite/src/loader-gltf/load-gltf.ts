@@ -1,4 +1,5 @@
 import type { Mat4 } from "../math/types.js";
+import { computeAabb } from "../math/aabb.js";
 import type { EngineContext } from "../engine/engine.js";
 import type { EngineContextInternal } from "../engine/engine.js";
 import type { TransformNode } from "../scene/transform-node.js";
@@ -516,7 +517,7 @@ async function uploadMeshes(engine: EngineContextInternal, meshDatas: GltfMeshDa
         meshDatas.map(async (m, i): Promise<Mesh> => {
             const material = await buildPbrFromGltfMat(m.material);
 
-            const [boundMin, boundMax] = computeWorldBounds(m.positions, m.worldMatrix);
+            const [boundMin, boundMax] = computeAabb(m.positions, m.worldMatrix);
 
             // Skeleton (modules already pre-loaded)
             let skeleton: import("../animation/types.js").SkeletonData | null = null;
@@ -566,47 +567,4 @@ async function uploadMeshes(engine: EngineContextInternal, meshDatas: GltfMeshDa
     );
 
     return meshes;
-}
-
-/** Compute world-space AABB from local positions x world matrix. */
-function computeWorldBounds(positions: Float32Array, world: Mat4): [[number, number, number], [number, number, number]] {
-    let minX = Infinity,
-        minY = Infinity,
-        minZ = Infinity;
-    let maxX = -Infinity,
-        maxY = -Infinity,
-        maxZ = -Infinity;
-
-    for (let i = 0; i < positions.length; i += 3) {
-        const lx = positions[i]!;
-        const ly = positions[i + 1]!;
-        const lz = positions[i + 2]!;
-        // Column-major transform: m[col*4+row]
-        const wx = world[0]! * lx + world[4]! * ly + world[8]! * lz + world[12]!;
-        const wy = world[1]! * lx + world[5]! * ly + world[9]! * lz + world[13]!;
-        const wz = world[2]! * lx + world[6]! * ly + world[10]! * lz + world[14]!;
-        if (wx < minX) {
-            minX = wx;
-        }
-        if (wx > maxX) {
-            maxX = wx;
-        }
-        if (wy < minY) {
-            minY = wy;
-        }
-        if (wy > maxY) {
-            maxY = wy;
-        }
-        if (wz < minZ) {
-            minZ = wz;
-        }
-        if (wz > maxZ) {
-            maxZ = wz;
-        }
-    }
-
-    return [
-        [minX, minY, minZ],
-        [maxX, maxY, maxZ],
-    ];
 }
