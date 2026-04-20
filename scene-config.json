@@ -283,7 +283,7 @@
         "name": "Scene 33 — KHR_lights_punctual",
         "maxMad": 0.5,
         "maxRawKB": 90.0,
-        "description": "LightsPunctualLamp.glb (KHR_lights_punctual point lights + KHR_materials_transmission) with default IBL environment. Matches PG #YG3BBF#54.",
+        "description": "LightsPunctualLamp.glb (KHR_lights_punctual point lights + KHR_materials_transmission) with default IBL environment. Matches PG #YG3BBF#54. NOTE: glass lampshade needs correct transmission parity (see scene 30) to tighten maxMad below 0.5.",
         "tags": ["pbr", "gltf", "env", "lights-punctual", "transmission"],
         "skipPerf": true
     },
