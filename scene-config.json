@@ -254,9 +254,9 @@
         "tags": ["std", "procedural"]
     },
     {
-        "id": 26,
-        "slug": "scene26-physics",
-        "name": "Scene 26 — Physics",
+        "id": 40,
+        "slug": "scene40-physics",
+        "name": "Scene 40 — Physics",
         "maxMad": 0.5,
         "maxRawKB": 55,
         "maxGzipKB": 22,

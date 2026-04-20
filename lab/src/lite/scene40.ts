@@ -1,4 +1,4 @@
-// Scene 26: Physics V2 — Havok sphere drop (matches playground #Z8HTUN#1)
+// Scene 40: Physics V2 — Havok sphere drop (matches playground #Z8HTUN#1)
 
 import HavokPhysics from "@babylonjs/havok";
 import {

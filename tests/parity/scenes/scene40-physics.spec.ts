@@ -1,5 +1,5 @@
 /**
- * Scene 26 — Physics V2 (Havok sphere drop) Parity Test
+ * Scene 40 — Physics V2 (Havok sphere drop) Parity Test
  *
  * Captures the Babylon Lite physics scene render and compares
  * against the golden reference (captured from Babylon.js with Havok).
@@ -10,15 +10,15 @@ import { test, expect } from "@playwright/test";
 import * as path from "path";
 import { captureGolden, compareImages, getSceneConfig } from "../compare-utils";
 
-const sceneConfig = getSceneConfig(26);
-const REFERENCE_DIR = path.resolve(__dirname, "../../../reference/scene26-physics");
+const sceneConfig = getSceneConfig(40);
+const REFERENCE_DIR = path.resolve(__dirname, "../../../reference/scene40-physics");
 const GOLDEN_REF = path.join(REFERENCE_DIR, "babylon-ref-golden.png");
 
-test("Scene 26 — Physics matches Babylon.js reference", async ({ page }) => {
+test("Scene 40 — Physics matches Babylon.js reference", async ({ page }) => {
     const browser = page.context().browser()!;
-    await captureGolden(browser, { sceneId: 26 });
+    await captureGolden(browser, { sceneId: 40 });
 
-    await page.goto("/scene26.html");
+    await page.goto("/scene40.html");
     await page.waitForFunction(() => document.querySelector("canvas")?.dataset.ready === "true", { timeout: 50_000 });
     await page.waitForTimeout(500);
 
