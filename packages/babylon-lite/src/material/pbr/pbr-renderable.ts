@@ -135,13 +135,79 @@ export async function buildPbrRenderables(
 
     // ── Dynamically import fragment creators based on scene capabilities ──
 
+    // Single O(N) pass over meshes detecting every per-mesh / per-material feature flag used below.
+    // Replaces ~11 sequential meshes.some() loops (was O(11N)). Short-circuits once every flag is true.
+    let hasSkybox = false;
+    let hasMetallicReflectance = false;
+    let hasClearcoat = false;
+    let hasSheen = false;
+    let hasAnyAnisotropy = false;
+    let hasAnySubsurface = false;
+    let hasRefraction = false;
+    let needsEmissiveColor = false;
+    let hasSomeSkeletons = false;
+    let hasSomeMorphs = false;
+    let hasSomeThinInstances = false;
+    for (let i = 0; i < meshes.length; i++) {
+        const m = meshes[i]!;
+        const mat = m.material as PbrMaterialProps;
+        if (!hasSkybox && !!mat.skyboxMode) {
+            hasSkybox = true;
+        }
+        if (!hasMetallicReflectance && (!!mat.metallicReflectanceTexture || !!mat.reflectanceTexture)) {
+            hasMetallicReflectance = true;
+        }
+        if (!hasClearcoat && !!mat.clearCoat?.isEnabled) {
+            hasClearcoat = true;
+        }
+        if (!hasSheen && !!mat.sheen?.isEnabled) {
+            hasSheen = true;
+        }
+        if (!hasAnyAnisotropy && !!mat.anisotropy?.isEnabled) {
+            hasAnyAnisotropy = true;
+        }
+        if (!hasAnySubsurface && !!mat.subsurface?.translucency) {
+            hasAnySubsurface = true;
+        }
+        if (!hasRefraction && (mat.subsurface?.refraction?.intensity ?? 0) > 0) {
+            hasRefraction = true;
+        }
+        if (!needsEmissiveColor && !!mat.emissiveColor) {
+            needsEmissiveColor = true;
+        }
+        if (!hasSomeSkeletons && !!m.skeleton) {
+            hasSomeSkeletons = true;
+        }
+        if (!hasSomeMorphs && !!m.morphTargets) {
+            hasSomeMorphs = true;
+        }
+        if (!hasSomeThinInstances && !!m.thinInstances) {
+            hasSomeThinInstances = true;
+        }
+        if (
+            hasSkybox &&
+            hasMetallicReflectance &&
+            hasClearcoat &&
+            hasSheen &&
+            hasAnyAnisotropy &&
+            hasAnySubsurface &&
+            hasRefraction &&
+            needsEmissiveColor &&
+            hasSomeSkeletons &&
+            hasSomeMorphs &&
+            hasSomeThinInstances
+        ) {
+            break;
+        }
+    }
+
     // IBL fragment
     let _iblSkyboxCalc = "";
     if (hasEnv) {
         const mod = await import("./fragments/ibl-fragment.js");
         _registerPbrExt(mod.iblExt);
         // Skybox-mode WGSL is only loaded when at least one mesh in the scene needs it.
-        if (meshes.some((m) => !!(m.material as PbrMaterialProps).skyboxMode)) {
+        if (hasSkybox) {
             const sky = await import("./fragments/ibl-skybox-wgsl.js");
             _iblSkyboxCalc = sky.IBL_SKYBOX_CALCULATION;
         }
@@ -170,29 +236,22 @@ export async function buildPbrRenderables(
         _multiLightLoop = wgslMod.MULTI_LIGHT_LOOP;
     }
 
-    // Per-mesh fragment creators (imported if any mesh needs them)
-    const hasMetallicReflectance = meshes.some((m) => {
-        const mat = m.material as PbrMaterialProps;
-        return !!mat.metallicReflectanceTexture || !!mat.reflectanceTexture;
-    });
+    // Per-mesh fragment creators (imported if any mesh needs them — flags populated by single pass above)
     if (hasMetallicReflectance) {
         const mod = await import("./fragments/reflectance-fragment.js");
         _registerPbrExt(mod.reflectanceExt);
     }
 
-    const hasClearcoat = meshes.some((m) => !!(m.material as PbrMaterialProps).clearCoat?.isEnabled);
     if (hasClearcoat) {
         const mod = await import("./fragments/clearcoat-fragment.js");
         _registerPbrExt(mod.clearcoatExt);
     }
 
-    const hasSheen = meshes.some((m) => !!(m.material as PbrMaterialProps).sheen?.isEnabled);
     if (hasSheen) {
         const mod = await import("./fragments/sheen-fragment.js");
         _registerPbrExt(mod.sheenExt);
     }
 
-    const hasAnyAnisotropy = meshes.some((m) => !!(m.material as PbrMaterialProps).anisotropy?.isEnabled);
     let _anisoExt: typeof import("./fragments/anisotropy-fragment.js") | null = null;
     if (hasAnyAnisotropy) {
         _anisoExt = await import("./fragments/anisotropy-fragment.js");
@@ -200,36 +259,31 @@ export async function buildPbrRenderables(
         _registerPbrMaterialUboWriter("anisotropy", (d, m, o) => anisoMod.writeAnisotropyUBO(d, m as PbrMaterialProps, o));
     }
 
-    const hasAnySubsurface = meshes.some((m) => !!(m.material as PbrMaterialProps).subsurface?.translucency);
     if (hasAnySubsurface) {
         const mod = await import("./fragments/subsurface-fragment.js");
         _registerPbrExt(mod.subsurfaceExt);
     }
 
-    if (meshes.some((m) => ((m.material as PbrMaterialProps).subsurface?.refraction?.intensity ?? 0) > 0)) {
+    if (hasRefraction) {
         const mod = await import("./fragments/refraction-fragment.js");
         _registerPbrExt(mod.refractionExt);
     }
 
-    const needsEmissiveColor = meshes.some((m) => !!(m.material as PbrMaterialProps).emissiveColor);
     if (needsEmissiveColor) {
         const mod = await import("./fragments/emissive-fragment.js");
         _registerPbrExt(mod.emissiveColorExt);
     }
 
-    const hasSomeSkeletons = meshes.some((m) => !!m.skeleton);
     if (hasSomeSkeletons) {
         const mod = await import("./fragments/skeleton-fragment.js");
         _registerPbrExt(mod.skeletonExt);
     }
 
-    const hasSomeMorphs = meshes.some((m) => !!m.morphTargets);
     if (hasSomeMorphs) {
         const mod = await import("./fragments/morph-fragment.js");
         _registerPbrExt(mod.morphExt);
     }
 
-    const hasSomeThinInstances = meshes.some((m) => !!m.thinInstances);
     let _createThinInstanceFragment: ((hasColor: boolean) => ShaderFragment) | null = null;
     let _syncThinInstanceBuffers:
         | ((engine: EngineContextInternal, ti: ThinInstanceData, pass: GPURenderPassEncoder | GPURenderBundleEncoder, slot: number, hasColor: boolean) => number)
@@ -464,7 +518,7 @@ export async function buildPbrRenderables(
     const renderables: Renderable[] = [];
 
     function drawPackets(pass: GPURenderPassEncoder | GPURenderBundleEncoder, list: PbrDrawPacket[]): number {
-        pass.setBindGroup(0, sceneBindGroup);
+        // sceneBindGroup is bound by engine.drawList via _sceneBG.
         let currentPipeline: GPURenderPipeline | null = null;
         for (const dp of list) {
             if (dp.variant.pipeline !== currentPipeline) {

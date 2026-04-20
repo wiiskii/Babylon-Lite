@@ -108,8 +108,7 @@ export function buildSinglePbrRenderable(scene: SceneContext, mesh: Mesh): Rende
             if (mesh.material !== mat) {
                 return 0;
             }
-            pass.setPipeline(variant.pipeline);
-            pass.setBindGroup(0, sceneBindGroup);
+            // Pipeline + sceneBG are set by engine.drawList via _pipeline/_sceneBG.
             pass.setBindGroup(1, materialBindGroup);
             if (shadowBindGroup) {
                 pass.setBindGroup(2, shadowBindGroup);

@@ -227,8 +227,7 @@ export function buildStandardMeshRenderables(scene: SceneContext, meshes: Mesh[]
                 }
             },
             draw(pass: GPURenderPassEncoder | GPURenderBundleEncoder) {
-                pass.setPipeline(variant.pipeline);
-                pass.setBindGroup(0, variant.sceneBG);
+                // Pipeline + sceneBG are set by engine.drawList via _pipeline/_sceneBG.
                 let draws = 0;
                 for (const pkt of packets) {
                     if (pkt.mesh.material !== pkt._lastMaterial) {
