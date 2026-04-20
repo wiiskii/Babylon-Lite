@@ -131,6 +131,14 @@ async function main(): Promise<void> {
 - **Remove debug code**: `console.warn`/`console.log` diagnostics, `(window as any).__bjsScene` exposures, and shader debug overrides (e.g. `color = vec4(reflectionColor * 10, 1)`) must be reverted before commit.
 - **Run `git status --short`** and verify every untracked file (`??`) belongs in the commit. If it's a temp file, delete it.
 
+### 0c. Agent Test Commands (Strict)
+
+- **Agents MUST NOT run `pnpm test:perf`.** Performance tests are machine-sensitive and reserved for the user / CI; running them from an agent session wastes time and produces unreliable signal.
+- **Agents run only:** `pnpm build:bundle-scenes` and `pnpm test:parity` (or the individual spec via `npx playwright test tests/parity/scenes/<spec>.spec.ts`). These cover parity MAD + bundle-size ceilings, which are the agent-enforceable guardrails.
+- `pnpm test` chains build + parity (no perf), which is acceptable.
+- If perf validation is needed, ask the user to run `pnpm test:perf` locally.
+
+
 ### 1. Live Inspection Tooling (Zero Guesswork)
 
 - Use the **Spector.GPU** MCP tools (`spector-gpu-navigate`, `spector-gpu-capture`, `spector-gpu-get_resource`, etc.) to capture reference frames from Babylon.js (WebGPU mode).

@@ -85,8 +85,10 @@ export async function loadGltf(engine: EngineContext, url: string): Promise<Asse
 
     const meshes = await uploadMeshes(meshDatas, features, ctx);
 
-    // Build TransformNode hierarchy from glTF nodes.
-    const root = buildNodeHierarchy(json, meshes, meshDatas);
+    // Build TransformNode hierarchy from glTF nodes. Returns both the synthetic root
+    // and a glTF-node-index → SceneNode map (used by node-visibility + animation-pointer).
+    const { root, nodeMap } = buildNodeHierarchy(json, meshes, meshDatas);
+    ctx.nodeMap = nodeMap;
 
     // Run every feature's per-asset hook (animations, variants, …) and merge
     // the returned AssetContainer fragments. `entities` is appended (never
@@ -188,6 +190,8 @@ const _features: GltfFeatureLoader[] = [
     [(j) => j.extensionsUsed?.includes("KHR_lights_punctual"), () => import("./gltf-feature-lights-punctual.js")],
     [(json) => !!json.animations?.length, () => import("./gltf-feature-animations.js")],
     [hasMatExt("variants"), () => import("./gltf-feature-variants.js")],
+    [(j) => j.extensionsUsed?.includes("KHR_node_visibility"), () => import("./gltf-ext-node-visibility.js")],
+    [(j) => j.extensionsUsed?.includes("KHR_animation_pointer"), () => import("./gltf-feature-animation-pointer.js")],
 ];
 
 /** Dynamic-import every feature the asset triggers. */
@@ -201,8 +205,10 @@ async function loadGltfFeatures(json: any): Promise<GltfFeature[]> {
 /** Build a TransformNode tree mirroring the glTF node hierarchy.
  *  Meshes are attached as children. Non-mesh nodes become
  *  pure TransformNodes preserving TRS for cloning/repositioning.
- *  Parent links are set by addToScene() when the tree is added to the scene. */
-function buildNodeHierarchy(json: any, meshes: Mesh[], meshDatas: GltfMeshData[]): TransformNode {
+ *  Parent links are set by addToScene() when the tree is added to the scene.
+ *  Also returns a glTF-node-index → SceneNode map used by per-asset features
+ *  (KHR_node_visibility, KHR_animation_pointer) to address specific nodes. */
+function buildNodeHierarchy(json: any, meshes: Mesh[], meshDatas: GltfMeshData[]): { root: TransformNode; nodeMap: (TransformNode | undefined)[] } {
     // Map nodeIndex → uploaded Mesh[]
     const nodeToMeshes = new Map<number, Mesh[]>();
     for (let i = 0; i < meshDatas.length; i++) {
@@ -215,6 +221,8 @@ function buildNodeHierarchy(json: any, meshes: Mesh[], meshDatas: GltfMeshData[]
         arr.push(meshes[i]!);
     }
 
+    const nodeMap: (TransformNode | undefined)[] = new Array(json.nodes?.length ?? 0);
+
     // Recursive builder
     function buildNode(nodeIdx: number): TransformNode {
         const node = json.nodes[nodeIdx];
@@ -222,6 +230,7 @@ function buildNodeHierarchy(json: any, meshes: Mesh[], meshDatas: GltfMeshData[]
         const r = node.rotation ?? [0, 0, 0, 1];
         const s = node.scale ?? [1, 1, 1];
         const tn = createTransformNode(node.name ?? `node_${nodeIdx}`, t[0], t[1], t[2], r[0], r[1], r[2], r[3], s[0], s[1], s[2]);
+        nodeMap[nodeIdx] = tn;
         if (node.children) {
             for (const childIdx of node.children) {
                 tn.children.push(buildNode(childIdx));
@@ -238,7 +247,7 @@ function buildNodeHierarchy(json: any, meshes: Mesh[], meshDatas: GltfMeshData[]
     const rootChildren = sceneRoots.map((ni: number) => buildNode(ni));
     const root = createTransformNode("__root__", 0, 0, 0, 0, 0, 0, 1, -1, 1, 1);
     root.children.push(...rootChildren);
-    return root;
+    return { root, nodeMap };
 }
 
 // --- Mesh Extraction ---
@@ -305,7 +314,9 @@ async function extractAllMeshes(
             const indices = idxData
                 ? idxData.data instanceof Uint32Array
                     ? new Uint32Array(idxData.data as Uint32Array)
-                    : new Uint16Array(idxData.data.buffer, idxData.data.byteOffset, idxData.count)
+                    : idxData.data instanceof Uint8Array
+                      ? Uint16Array.from(idxData.data as Uint8Array)
+                      : new Uint16Array(idxData.data.buffer, idxData.data.byteOffset, idxData.count)
                 : new Uint16Array(0);
 
             // Fire material fetch without awaiting — all materials load in parallel

@@ -533,6 +533,9 @@ export async function buildPbrRenderables(
         // sceneBindGroup is bound by engine.drawList via _sceneBG.
         let currentPipeline: GPURenderPipeline | null = null;
         for (const dp of list) {
+            if (dp.mesh.visible === false) {
+                continue;
+            }
             if (dp.variant.pipeline !== currentPipeline) {
                 pass.setPipeline(dp.variant.pipeline);
                 currentPipeline = dp.variant.pipeline;

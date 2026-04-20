@@ -6,6 +6,14 @@ import type { Renderable } from "../render/renderable.js";
 /** Babylon Lite version string. */
 export const VERSION = "0.1.0";
 
+// Module-scoped visibility epoch. `setSubtreeVisible` (scene/visibility.ts,
+// loaded only by KHR_node_visibility / KHR_animation_pointer features) bumps
+// this. drawList reads it to invalidate the cached opaque bundle.
+export let _vis = 0;
+export function bumpVisibilityEpoch(): void {
+    _vis = (_vis + 1) | 0;
+}
+
 /** Handle to the WebGPU engine — pure state, no attached methods. */
 export interface EngineContext {
     readonly canvas: HTMLCanvasElement;
@@ -25,6 +33,7 @@ export interface EngineContextInternal extends EngineContext {
     _renderFn: ((now: number) => void) | null;
     _opaqueBundle: GPURenderBundle | null;
     _bundleVersion: number;
+    _bundleVis: number;
 }
 
 interface RenderTargets {
@@ -83,6 +92,7 @@ export async function createEngine(canvas: HTMLCanvasElement): Promise<EngineCon
         _renderFn: null,
         _opaqueBundle: null,
         _bundleVersion: -1,
+        _bundleVis: 0,
     };
 
     return engine;
@@ -222,6 +232,9 @@ function drawList(enc: GPURenderPassEncoder | GPURenderBundleEncoder, list: read
     let lb: GPUBindGroup | null = null;
     let draws = 0;
     for (const r of list) {
+        if (r.mesh && r.mesh.visible === false) {
+            continue;
+        }
         if (r._pipeline && r._pipeline !== lp) {
             enc.setPipeline(r._pipeline);
             lp = r._pipeline;
@@ -320,8 +333,9 @@ function renderFrame(engine: EngineContextInternal, targets: RenderTargets, scen
 
     pass.setViewport(0, 0, targets.width, targets.height, 0, 1);
 
-    // ─── Opaque pass: use cached render bundle when renderable list is unchanged ───
-    if (engine._bundleVersion !== scene._renderableVersion || !engine._opaqueBundle) {
+    // Opaque pass bundle cache: invalidated on renderable list change or
+    // visibility epoch bump (KHR_node_visibility / KHR_animation_pointer).
+    if (engine._bundleVersion !== scene._renderableVersion || engine._bundleVis !== _vis || !engine._opaqueBundle) {
         const bundleEncoder = engine.device.createRenderBundleEncoder({
             colorFormats: [engine.format],
             depthStencilFormat: "depth24plus-stencil8",
@@ -330,6 +344,7 @@ function renderFrame(engine: EngineContextInternal, targets: RenderTargets, scen
         drawList(bundleEncoder, scene._opaqueRenderables, engine);
         engine._opaqueBundle = bundleEncoder.finish();
         engine._bundleVersion = scene._renderableVersion;
+        engine._bundleVis = _vis;
     }
     drawCalls += scene._opaqueRenderables.length;
     pass.executeBundles([engine._opaqueBundle]);
