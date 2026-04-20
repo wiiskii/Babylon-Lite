@@ -13,9 +13,7 @@ module.exports = function (results) {
             const line = msg.line || 0;
             const col = msg.column || 0;
             const text = `${msg.ruleId || "eslint"}: ${msg.message}`;
-            lines.push(
-                `##vso[task.logissue type=${type};sourcepath=${file};linenumber=${line};columnnumber=${col}]${text}`
-            );
+            lines.push(`##vso[task.logissue type=${type};sourcepath=${file};linenumber=${line};columnnumber=${col}]${text}`);
         }
     }
     // Return empty string — all output is via ##vso side-channel
