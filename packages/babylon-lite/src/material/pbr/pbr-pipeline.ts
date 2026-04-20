@@ -10,7 +10,7 @@ import type { ComposedShader } from "../../shader/fragment-types.js";
 import type { EngineContextInternal } from "../../engine/engine.js";
 import { createPipelineCache, releaseVariant } from "../pipeline-cache.js";
 import type { PipelineCache } from "../pipeline-cache.js";
-import { _getPbrLightExtension, _getPbrExts } from "./pbr-flags.js";
+import { _getPbrLightExtension, _getPbrExtsSorted } from "./pbr-flags.js";
 import {
     PBR_HAS_NORMAL_MAP,
     PBR_HAS_EMISSIVE,
@@ -192,7 +192,7 @@ export function createPbrMeshBindGroup(
     };
 
     // Sort exts by id to match composer's alphabetical binding emission order.
-    const sortedExts = Array.from(_getPbrExts().values()).sort((a, b) => a.id.localeCompare(b.id));
+    const sortedExts = _getPbrExtsSorted();
 
     // Mesh UBO (binding 0)
     entries.push({ binding: b++, resource: { buffer: meshUBO } });

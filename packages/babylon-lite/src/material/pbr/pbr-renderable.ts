@@ -20,7 +20,7 @@ import type { ShaderFragment, ComposedShader } from "../../shader/fragment-types
 import type { PbrLightConfig } from "./pbr-template.js";
 import type { UboField } from "../../shader/fragment-types.js";
 import { composeShader } from "../../shader/shader-composer.js";
-import { createPbrTemplate } from "./pbr-template.js";
+import { createPbrTemplate, getPbrBaseSceneUboFields } from "./pbr-template.js";
 import { computeUboLayout } from "../../shader/ubo-layout.js";
 import { acquireTexture, releaseTexture, clearSamplerCache } from "../../resource/gpu-pool.js";
 import { createEmptyUniformBuffer, createUniformBuffer } from "../../resource/gpu-buffers.js";
@@ -351,18 +351,12 @@ export async function buildPbrRenderables(
     (scene as SceneContextInternal)._composePbr = composePbr;
 
     // ── Scene UBO layout ──
-    // Compute the scene UBO spec from the template's baseSceneUboFields.
+    // Compute the scene UBO spec from the base template's scene UBO fields.
     // All PBR variants share the same scene UBO layout — the base template
     // includes all scene fields. Light fields are always present for layout
     // compatibility with background ground shader.
-    const refTemplate = createPbrTemplate({
-        light: hasMultiLight ? null : lightConfig,
-        hasMultiLight,
-        multiLightWGSL: _multiLightWGSL,
-        multiLightLoop: _multiLightLoop,
-        hasIbl: hasEnv,
-    });
-    const sceneUboSpec = computeUboLayout(refTemplate.baseSceneUboFields);
+    const baseSceneUboFields = getPbrBaseSceneUboFields(hasMultiLight ? null : lightConfig, hasMultiLight, hasEnv);
+    const sceneUboSpec = computeUboLayout(baseSceneUboFields);
     const sceneUboSize = sceneUboSpec.totalBytes;
 
     const sceneBGL = createSceneBindGroupLayout(engine);
@@ -393,6 +387,10 @@ export async function buildPbrRenderables(
 
     const packets: PbrDrawPacket[] = [];
     const featureCtx: import("./pbr-mesh-features.js").PbrFeatureCtx = { hasEnv, hasTonemap, hasSomeShadows };
+    // Shadow bind group cache — within one scene build, all receiving meshes share the
+    // same shadowLights array (see meshShadowLights assignment below), so a BG keyed by
+    // shadowBGL alone is correct. Cache is scoped to this builder (not module-level).
+    const shadowBGCache = new Map<GPUBindGroupLayout, GPUBindGroup>();
     for (const mesh of meshes) {
         const gpu = (mesh as MeshInternal)._gpu;
         const mat = mesh.material as PbrMaterialProps;
@@ -405,21 +403,29 @@ export async function buildPbrRenderables(
         const materialUBO = createMaterialUBO(engine, mat, composed);
         const materialBindGroup = createPbrMeshBindGroup(engine, variant, meshUBO, materialUBO, mat, envTextures ?? null, mesh, lightsUBOBuffer);
 
-        // Shadow bind group (group 2) — per-light: texture, sampler, and shared shadow UBO
+        // Shadow bind group (group 2) — per-light: texture, sampler, and shared shadow UBO.
+        // Shared across all receiving meshes in this build via shadowBGCache.
         let shadowBindGroup: GPUBindGroup | null = null;
         const packetShadowGens: ShadowGenerator[] = [];
         const meshShadowLights = mesh.receiveShadows ? shadowLights : [];
         if (meshShadowLights.length > 0 && variant.shadowBGL) {
-            const entries: GPUBindGroupEntry[] = [];
-            let b = 0;
             for (const sl of meshShadowLights) {
-                const sg = sl.gen;
-                entries.push({ binding: b++, resource: sg.blurredTexture.createView() });
-                entries.push({ binding: b++, resource: sg.blurredSampler });
-                packetShadowGens.push(sg);
-                entries.push({ binding: b++, resource: { buffer: sg.shadowUBO } });
+                packetShadowGens.push(sl.gen);
             }
-            shadowBindGroup = device.createBindGroup({ layout: variant.shadowBGL, entries });
+            let cached = shadowBGCache.get(variant.shadowBGL);
+            if (!cached) {
+                const entries: GPUBindGroupEntry[] = [];
+                let b = 0;
+                for (const sl of meshShadowLights) {
+                    const sg = sl.gen;
+                    entries.push({ binding: b++, resource: sg.blurredTexture.createView() });
+                    entries.push({ binding: b++, resource: sg.blurredSampler });
+                    entries.push({ binding: b++, resource: { buffer: sg.shadowUBO } });
+                }
+                cached = device.createBindGroup({ layout: variant.shadowBGL, entries });
+                shadowBGCache.set(variant.shadowBGL, cached);
+            }
+            shadowBindGroup = cached;
         }
 
         packets.push({
