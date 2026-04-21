@@ -273,7 +273,7 @@ export async function loadBasisTexture2D(engine: EngineContext, url: string, opt
             maxAnisotropy: allLinear ? 4 : 1,
         });
 
-        const tex2d: Texture2D = { texture, view: texture.createView(), sampler, width, height };
+        const tex2d: Texture2D = { texture, view: texture.createView(), sampler, width, height, invertY: true };
         acquireTexture(tex2d);
         return tex2d;
     } finally {
