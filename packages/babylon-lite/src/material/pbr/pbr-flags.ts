@@ -64,6 +64,9 @@ export const PBR2_HAS_REFLECTANCE_FACTORS = 1 << 10;
 export const PBR2_HAS_VERTEX_COLOR = 1 << 11;
 /** Mesh has a second UV set (TEXCOORD_1) and the material uses it for occlusion. */
 export const PBR2_HAS_UV2 = 1 << 12;
+/** Material has a sheen texture with a KHR_texture_transform. Sheen owns its
+ *  own `sheenUVm`/`sheenUVt` UBO fields and applies txfUV locally. */
+export const PBR2_HAS_SHEEN_UV_TX = 1 << 13;
 
 let _lightExt: PbrLightExtension | null = null;
 /** @internal */ export function _setPbrLightExtension(ext: PbrLightExtension): void {
