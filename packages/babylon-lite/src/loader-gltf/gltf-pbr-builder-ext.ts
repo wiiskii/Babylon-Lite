@@ -25,8 +25,12 @@ export interface PbrTexturesExt {
 /** Stamp `_texCoord=1` on a clone when textureInfo selects UV1 and the
  *  wrapTex layer didn't already set it (i.e. scene has no KHR_texture_transform). */
 function wrapTexCoord(tex: Texture2D, texInfo: unknown): Texture2D {
-    if (!texInfo) return tex;
-    if ((tex as { _texCoord?: 0 | 1 })._texCoord === 1) return tex;
+    if (!texInfo) {
+        return tex;
+    }
+    if ((tex as { _texCoord?: 0 | 1 })._texCoord === 1) {
+        return tex;
+    }
     const ti = texInfo as { texCoord?: number; extensions?: { KHR_texture_transform?: { texCoord?: number } } };
     const tc = ti.extensions?.KHR_texture_transform?.texCoord ?? ti.texCoord;
     return tc === 1 ? cloneTexture2D(tex, { _texCoord: 1 }) : tex;
@@ -83,11 +87,7 @@ export function buildDefaultPbrTexturesExt(
 }
 
 /** Slow-path assembly: adds occlusionTexCoord and occlusionTexture props. */
-export function assemblePbrPropsExt(
-    mat: GltfMaterialData,
-    tex: PbrTexturesExt,
-    extLayers: Partial<PbrMaterialProps> | undefined
-): PbrMaterialPropsInternal {
+export function assemblePbrPropsExt(mat: GltfMaterialData, tex: PbrTexturesExt, extLayers: Partial<PbrMaterialProps> | undefined): PbrMaterialPropsInternal {
     const ef = mat.emissiveFactor;
     const defaultFactor = (ef[0] === 1 && ef[1] === 1 && ef[2] === 1) || (ef[0] === 0 && ef[1] === 0 && ef[2] === 0);
     // Precompute UV-transform presence so the renderer doesn't scan 5 textures

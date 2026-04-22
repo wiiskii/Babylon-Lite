@@ -8,14 +8,7 @@
 import type { Mesh } from "../../mesh/mesh.js";
 import type { SceneContext } from "../../scene/scene.js";
 import type { PbrMaterialProps } from "./pbr-material.js";
-import {
-    PBR_HAS_SKELETON_8,
-    PBR_HAS_SPECULAR_AA,
-    PBR_HAS_RECEIVE_SHADOWS,
-    PBR_HAS_GAMMA_ALBEDO,
-    PBR_HAS_THIN_INSTANCES,
-    PBR_HAS_INSTANCE_COLOR,
-} from "./pbr-pipeline.js";
+import { PBR_HAS_SKELETON_8, PBR_HAS_SPECULAR_AA, PBR_HAS_RECEIVE_SHADOWS, PBR_HAS_GAMMA_ALBEDO, PBR_HAS_THIN_INSTANCES, PBR_HAS_INSTANCE_COLOR } from "./pbr-pipeline.js";
 import {
     getLightTypeFeatureBits,
     _getPbrExts,

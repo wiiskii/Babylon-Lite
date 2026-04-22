@@ -325,17 +325,18 @@ export async function buildPbrRenderables(
         const hasVC = (features2 & PBR2_HAS_VERTEX_COLOR) !== 0;
         const hasU2 = (features2 & PBR2_HAS_UV2) !== 0;
         const needsExt = hasUvTx || hasVC || hasU2;
-        const ext = needsExt && _createPbrTemplateExt
-            ? _createPbrTemplateExt({
-                  hasUvTransform: hasUvTx,
-                  hasVertexColor: hasVC,
-                  hasUv2: hasU2,
-                  hasOcclusionUv2: hasU2, // When UV2 is present and has occlusion on texcoord 1
-                  hasAnyNormal: hasNormal || hasCotangent,
-                  hasEmissiveTexture: hasEmTex,
-                  hasSpecGloss: has(PBR_HAS_SPEC_GLOSS),
-              })
-            : undefined;
+        const ext =
+            needsExt && _createPbrTemplateExt
+                ? _createPbrTemplateExt({
+                      hasUvTransform: hasUvTx,
+                      hasVertexColor: hasVC,
+                      hasUv2: hasU2,
+                      hasOcclusionUv2: hasU2, // When UV2 is present and has occlusion on texcoord 1
+                      hasAnyNormal: hasNormal || hasCotangent,
+                      hasEmissiveTexture: hasEmTex,
+                      hasSpecGloss: has(PBR_HAS_SPEC_GLOSS),
+                  })
+                : undefined;
 
         const template = createPbrTemplate({
             light: hasMultiLight ? null : lightConfig,

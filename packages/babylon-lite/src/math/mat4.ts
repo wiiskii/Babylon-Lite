@@ -62,9 +62,18 @@ export function mat4LookAtLH(eye: Vec3, target: Vec3, up: Vec3): Mat4 {
     };
 
     return new Float32Array([
-        xAxis.x, yAxis.x, zAxis.x, 0,
-        xAxis.y, yAxis.y, zAxis.y, 0,
-        xAxis.z, yAxis.z, zAxis.z, 0,
+        xAxis.x,
+        yAxis.x,
+        zAxis.x,
+        0,
+        xAxis.y,
+        yAxis.y,
+        zAxis.y,
+        0,
+        xAxis.z,
+        yAxis.z,
+        zAxis.z,
+        0,
         -(xAxis.x * eye.x + xAxis.y * eye.y + xAxis.z * eye.z),
         -(yAxis.x * eye.x + yAxis.y * eye.y + yAxis.z * eye.z),
         -(zAxis.x * eye.x + zAxis.y * eye.y + zAxis.z * eye.z),

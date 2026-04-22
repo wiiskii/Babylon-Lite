@@ -43,7 +43,10 @@ export interface Texture2D {
  *  on different textureInfos pointing at the same source). The caller is
  *  responsible for acquireTexture/release pairing if the wrapper outlives
  *  the base. */
-export function cloneTexture2D(base: Texture2D, transform: Partial<Pick<Texture2D, "uScale" | "vScale" | "uOffset" | "vOffset" | "uAng">> & { _texCoord?: 0 | 1; _hasTx?: true }): Texture2D {
+export function cloneTexture2D(
+    base: Texture2D,
+    transform: Partial<Pick<Texture2D, "uScale" | "vScale" | "uOffset" | "vOffset" | "uAng">> & { _texCoord?: 0 | 1; _hasTx?: true }
+): Texture2D {
     return { ...base, ...transform } as Texture2D;
 }
 

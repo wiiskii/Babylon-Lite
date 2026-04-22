@@ -455,16 +455,16 @@ async function uploadMeshes(meshDatas: GltfMeshData[], features: GltfFeature[], 
         if (cached) {
             return cached;
         }
-    cached = (async () => {
-                const extLayers = await runMatExts(mat, matExts, extCtx);
-                if (_needsPbrExt) {
-                    const extMod = await _ensurePbrExt();
-                    const tex = extMod.buildDefaultPbrTexturesExt(engine, mat, sampler, _generateMipmaps!, getCachedTexture, wrapTex);
-                    return extMod.assemblePbrPropsExt(mat, tex, extLayers);
-                }
-                const tex = buildDefaultPbrTextures(engine, mat, sampler, _generateMipmaps!, getCachedTexture);
-                return assemblePbrProps(mat, tex.baseColorTexture, tex.ormTexture, tex.normalTexture, tex.emissiveTexture, extLayers);
-            })();
+        cached = (async () => {
+            const extLayers = await runMatExts(mat, matExts, extCtx);
+            if (_needsPbrExt) {
+                const extMod = await _ensurePbrExt();
+                const tex = extMod.buildDefaultPbrTexturesExt(engine, mat, sampler, _generateMipmaps!, getCachedTexture, wrapTex);
+                return extMod.assemblePbrPropsExt(mat, tex, extLayers);
+            }
+            const tex = buildDefaultPbrTextures(engine, mat, sampler, _generateMipmaps!, getCachedTexture);
+            return assemblePbrProps(mat, tex.baseColorTexture, tex.ormTexture, tex.normalTexture, tex.emissiveTexture, extLayers);
+        })();
         builtMaterialCache.set(mat, cached);
         return cached;
     }

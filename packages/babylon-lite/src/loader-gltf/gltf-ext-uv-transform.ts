@@ -33,7 +33,9 @@ const ext: GltfFeature = {
     id: "KHR_texture_transform",
     wrapTexture(tex: Texture2D, texInfo: unknown): Texture2D {
         const info = texInfo as KtInfo | null | undefined;
-        if (!info) return tex;
+        if (!info) {
+            return tex;
+        }
         const kt = info.extensions?.KHR_texture_transform;
         const patch: { uScale?: number; vScale?: number; uOffset?: number; vOffset?: number; uAng?: number; _hasTx?: true; _texCoord?: 0 | 1 } = {};
         if (kt) {

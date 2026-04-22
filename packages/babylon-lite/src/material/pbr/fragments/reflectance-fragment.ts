@@ -40,7 +40,12 @@ export function writeReflectanceUBO(data: Float32Array, material: PbrMaterialPro
  * @param hasReflectanceMap Whether the material has a reflectanceTexture.
  * @param useAlphaOnlyMR Whether to use only the alpha channel from the metallic reflectance map.
  */
-export function createReflectanceFragment(hasMetallicReflectanceMap: boolean, hasReflectanceMap: boolean, useAlphaOnlyMR: boolean, hasOcclusionUv2: boolean = false): ShaderFragment {
+export function createReflectanceFragment(
+    hasMetallicReflectanceMap: boolean,
+    hasReflectanceMap: boolean,
+    useAlphaOnlyMR: boolean,
+    hasOcclusionUv2: boolean = false
+): ShaderFragment {
     const bindings: BindingDecl[] = [];
     if (hasMetallicReflectanceMap) {
         bindings.push(
@@ -130,7 +135,7 @@ export const reflectanceExt: PbrExt = {
                 f2 |= PBR2_HAS_REFLECTANCE_FACTORS;
             }
         }
-        if ((f !== 0 || (f2 & PBR2_HAS_REFLECTANCE_FACTORS)) && m.useOnlyMetallicFromMetallicReflectanceTexture) {
+        if ((f !== 0 || f2 & PBR2_HAS_REFLECTANCE_FACTORS) && m.useOnlyMetallicFromMetallicReflectanceTexture) {
             f |= PBR_HAS_USE_ALPHA_ONLY_MR;
         }
         return { f, f2 };

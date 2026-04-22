@@ -362,13 +362,7 @@ let metallic = orm.b * material.metallicFactor;`;
           : `let emissive = vec3<f32>(0.0);`;
 
     // Occlusion default (overridden by reflectance fragment's AT slot or ext occlusion override)
-    const occlusionDefault = hasReflectanceExt
-        ? ``
-        : ext?.occlusionOverride
-          ? ext.occlusionOverride
-          : hasOcclusion
-            ? `let occlusion = orm.r;`
-            : `let occlusion = 1.0;`;
+    const occlusionDefault = hasReflectanceExt ? `` : ext?.occlusionOverride ? ext.occlusionOverride : hasOcclusion ? `let occlusion = orm.r;` : `let occlusion = 1.0;`;
 
     // F0 computation (overridden by reflectance fragment's MF slot)
     const f0Default = hasReflectanceExt

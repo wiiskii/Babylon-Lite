@@ -11,14 +11,7 @@ import type { EngineContextInternal } from "../../engine/engine.js";
 import { createPipelineCache, releaseVariant } from "../pipeline-cache.js";
 import type { PipelineCache } from "../pipeline-cache.js";
 import { _getPbrLightExtension, _getPbrExtsSorted, PBR2_HAS_UV2 } from "./pbr-flags.js";
-import {
-    PBR_HAS_NORMAL_MAP,
-    PBR_HAS_EMISSIVE,
-    PBR_HAS_SPEC_GLOSS,
-    PBR_HAS_DOUBLE_SIDED,
-    PBR_HAS_COTANGENT_NORMAL,
-    PBR_HAS_ALPHA_BLEND,
-} from "./pbr-flags.js";
+import { PBR_HAS_NORMAL_MAP, PBR_HAS_EMISSIVE, PBR_HAS_SPEC_GLOSS, PBR_HAS_DOUBLE_SIDED, PBR_HAS_COTANGENT_NORMAL, PBR_HAS_ALPHA_BLEND } from "./pbr-flags.js";
 export * from "./pbr-flags.js";
 
 // ─── Pipeline Variant ───────────────────────────────────────────────
