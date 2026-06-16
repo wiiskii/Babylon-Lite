@@ -148,6 +148,7 @@ export {
     createGround,
     createGroundFromHeightMap,
     createCylinder,
+    createCapsule,
     createPlane,
     createDisc,
     createPolyhedron,
@@ -167,7 +168,9 @@ export {
 export { createSphereData } from "./mesh/create-sphere.js";
 export type { SphereMeshData } from "./mesh/create-sphere.js";
 export { createCylinderData } from "./mesh/create-cylinder.js";
+export { createCapsuleData } from "./mesh/create-capsule.js";
 export type { CylinderData } from "./mesh/create-cylinder.js";
+export type { CapsuleData } from "./mesh/create-capsule.js";
 export { createTorusKnotData } from "./mesh/create-torus-knot.js";
 export type { TorusKnotData, TorusKnotOptions } from "./mesh/create-torus-knot.js";
 export { createCsgFromMesh, csgSubtract, csgIntersect, csgUnion, createMeshFromCsg } from "./mesh/csg.js";
@@ -362,6 +365,7 @@ export type { SphereOptions } from "./mesh/create-sphere.js";
 export type { TorusOptions } from "./mesh/create-torus.js";
 export type { GroundOptions } from "./mesh/create-ground.js";
 export type { CylinderOptions } from "./mesh/create-cylinder.js";
+export type { CapsuleOptions } from "./mesh/create-capsule.js";
 export type { PlaneOptions } from "./mesh/create-plane.js";
 export type { DiscOptions } from "./mesh/create-disc.js";
 export type { PolyhedronOptions } from "./mesh/create-polyhedron.js";
@@ -541,6 +545,7 @@ export {
     getPhysicsGravity,
     setPhysicsTimestep,
     getPhysicsTimestep,
+    onPhysicsAfterStep,
     setPhysicsVelocityLimits,
     getPhysicsVelocityLimits,
     setPhysicsBodyShape,
@@ -581,6 +586,10 @@ export type {
     PhysicsConstraintOptions,
     PhysicsConstraintLimit,
 } from "./physics/havok.js";
+export { createHeightFieldShape } from "./physics/havok-heightfield.js";
+export type { HeightFieldShapeOptions } from "./physics/havok-heightfield.js";
+export { shapeProximity, shapeCast } from "./physics/havok-queries.js";
+export type { ShapeProximityQuery, ShapeCastQuery, ShapeProximityResult, ShapeCastResult } from "./physics/havok-queries.js";
 export { createPhysicsViewer, showPhysicsBody, showPhysicsConstraint, hidePhysicsBody, disposePhysicsViewer } from "./physics/physics-viewer.js";
 export type { PhysicsViewer, PhysicsViewerOptions, PhysicsConstraintDebug } from "./physics/physics-viewer.js";
 
