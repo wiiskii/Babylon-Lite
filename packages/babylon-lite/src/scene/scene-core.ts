@@ -15,8 +15,10 @@ import type { SceneNode } from "./scene-node.js";
 import type { EnvironmentTextures } from "../loader-env/load-env.js";
 import type { FrameGraph } from "../frame-graph/frame-graph.js";
 import { createFrameGraph, _appendTask } from "../frame-graph/frame-graph.js";
-import { createRenderTask } from "../frame-graph/render-task.js";
-import { createRenderTarget } from "../engine/render-target.js";
+import { createRenderTask, type RenderTask } from "../frame-graph/render-task.js";
+import { createRenderTarget, disposeRenderTarget, type RenderTarget } from "../engine/render-target.js";
+import type { Material, MaterialView } from "../material/material.js";
+import { getNoColorView, preloadNoColorViewDispatch } from "../material/no-color-view-dispatch.js";
 import type { AssetContainer } from "../asset-container.js";
 import type { SceneLightGpuState } from "../render/lights-ubo.js";
 import type { ClusteredLightContainer } from "../light/clustered.js";
@@ -134,6 +136,12 @@ export interface SceneContext extends RenderingContext {
 /** Options passed to the scene-context factory. */
 export interface SceneContextOptions {
     defaultRenderTask?: boolean;
+    /** Opt in to an opaque depth pre-pass (early-Z). When true, opaque scene
+     *  geometry is rendered depth-only into a shared depth buffer BEFORE the
+     *  main opaque colour pass, so the colour pass's fragment shader is skipped
+     *  on occluded fragments. Off by default; ignored when `defaultRenderTask`
+     *  is `false` (there is no scene colour task to feed). */
+    depthPrepass?: boolean;
 }
 
 /** Create an empty scene context bound to the given `surface`. The default render task
@@ -222,14 +230,186 @@ export function createSceneContext(surface: SurfaceContext, options?: SceneConte
         // scRT with a task-owned single-sample depth buffer it builds/clears/frees.
         // All three reads (format / msaaSamples / scRT) come from the bound `surface`.
         const msaa = surface.msaaSamples > 1;
-        const rt = msaa
-            ? createRenderTarget({ lbl: "scene-color", format: surface.format, dFormat: "depth24plus-stencil8", samples: surface.msaaSamples, size: surface })
-            : surface.scRT;
-        const depth = msaa ? undefined : createRenderTarget({ lbl: "scene-depth", dFormat: "depth24plus-stencil8", samples: 1, size: surface });
-        _appendTask(fg, createRenderTask({ name: "scene", rt, rst: msaa ? surface.scRT : undefined, depth, clrColor: ctx.clearColor }, eng, ctx));
+        const samples = msaa ? surface.msaaSamples : 1;
+        if (options?.depthPrepass) {
+            // ── Opaque depth pre-pass (early-Z) ─────────────────────────────
+            // A producer task ("scene-depth-prepass") clears + writes opaque scene
+            // depth into a shared depth buffer; the scene colour task then *loads*
+            // that exact physical depth texture so its opaque colour fragments
+            // early-Z against the pre-written depth (reverse-Z greater-equal: an
+            // occluded fragment's depth is < the stored value ⇒ test fails ⇒ the
+            // fragment shader is skipped).
+            //
+            // Depth-sharing idiom mirrors GeometryRendererTask + RenderTask
+            // (frame-graph/geometry-renderer-task.ts:282-283,463-468 wires an
+            // `_eager` depth wrapper onto a task-owned depth texture, which a
+            // later RenderTask consumes via `config.depth` ⇒ `loadOp:"load"`,
+            // render-task.ts:218). Here the *producer* owns the real depth RT
+            // (non-eager ⇒ built/cleared/resized/disposed by its own RenderTask,
+            // render-task.ts:253), and the *consumer* takes an eager wrapper RT
+            // re-pointed at that texture each record() (so it loads, never
+            // rebuilds/clears/disposes it).
+            const sharedDepth = createRenderTarget({ lbl: "scene-depth-prepass", dFormat: "depth24plus-stencil8", samples, size: surface });
+            // Eager wrapper: same depth/stencil format + sample count, NO colour
+            // format. The scene colour task takes this as `config.depth` ⇒ eager ⇒
+            // `loadOp:"load"`; `buildRenderTarget`/`disposeRenderTarget` no-op on it.
+            const depthConsumer: RenderTarget = {
+                _descriptor: { lbl: "scene-depth-prepass.consumer", dFormat: "depth24plus-stencil8", samples, size: surface },
+                _colorTexture: null,
+                _colorView: null,
+                _depthTexture: null,
+                _depthView: null,
+                _width: 0,
+                _height: 0,
+                _eager: true,
+                // The texture is owned by `sharedDepth` (the producer RT). Never
+                // destroy it through the wrapper.
+                _ownsDepthTexture: false,
+            };
+
+            // Producer: a colour-less RenderTask whose `rt` IS the shared depth.
+            // No colour format ⇒ no colour attachment, and the no-color material
+            // pipelines drop their fragment stage (standard-pipeline.ts:201 /
+            // pbr-pipeline.ts:131 force depthWrite on for NO_COLOR_OUTPUT). Depth
+            // comes via `rt` (not `config.depth`) so `_depthLoadOp` defaults to
+            // "clear" (render-task.ts:384) ⇒ this pass clears + writes depth.
+            // Reverse-Z is inherited: the RT carries no `_depthCompare`/`_depthClearValue`,
+            // so pipelines use REVERSE_DEPTH_COMPARE ("greater-equal") and the
+            // attachment clears to 0 (render-target.ts:33,44 defaults). We must NOT
+            // copy the shadow-map's forward-Z (less-equal / clear 1).
+            const prepassTask = createRenderTask({ name: "scene-depth-prepass", rt: sharedDepth, clrColor: ctx.clearColor }, eng, ctx);
+            // One no-color view per source material, reused across re-records.
+            const prepassViews = new Map<Material, MaterialView>();
+            // Lazily load the no-color view factories for whichever material
+            // families the opaque meshes use (mirrors the shadow task's preload,
+            // shadow-task.ts:35). registerScene awaits every task's `_preload`
+            // before fg.build() runs record(), so the factories are present when
+            // syncDepthPrepassMeshes calls getNoColorView.
+            prepassTask._preload = async (): Promise<void> => {
+                await preloadNoColorViewDispatch(opaqueMeshesForPrepass(ctx));
+            };
+
+            // Mirror the producer's freshly-built depth texture onto the eager
+            // consumer wrapper. Wraps the producer's record() — the prepass is
+            // ordered first in the frame graph, so by the time the scene colour
+            // task records (and bakes its depth-attachment view), the wrapper is
+            // current. Direct analogue of geometry-renderer-task.ts:463-468.
+            const baseRecord = prepassTask.record;
+            prepassTask.record = (): void => {
+                const queued = syncDepthPrepassMeshes(prepassTask, ctx, prepassViews);
+                baseRecord.call(prepassTask);
+                if (queued === 0) {
+                    // No opaque meshes ⇒ the base record() would otherwise
+                    // auto-mirror the WHOLE scene (including transparent meshes)
+                    // into this depth pass. Strip those bindings so the prepass
+                    // only clears depth and draws nothing.
+                    prepassTask._renderables.length = 0;
+                    prepassTask._opaqueBindings.length = 0;
+                    prepassTask._directBindings.length = 0;
+                    prepassTask._transparentBindings.length = 0;
+                    prepassTask._opaqueBundles.length = 0;
+                    prepassTask._autoFromScene = false;
+                }
+                depthConsumer._depthTexture = sharedDepth._depthTexture;
+                depthConsumer._depthView = sharedDepth._depthView;
+                depthConsumer._width = sharedDepth._width;
+                depthConsumer._height = sharedDepth._height;
+            };
+
+            const rt = msaa ? createRenderTarget({ lbl: "scene-color", format: surface.format, samples: surface.msaaSamples, size: surface }) : surface.scRT;
+            // Insert the prepass FIRST, then the scene colour task that consumes
+            // its depth. (Shadow tasks, when present, are unshifted ahead of both
+            // by registerSceneWithShadowSupport — scene-core.ts ensureShadowTask —
+            // which is fine: the prepass only needs to precede the colour task.)
+            _appendTask(fg, prepassTask);
+            _appendTask(fg, createRenderTask({ name: "scene", rt, rst: msaa ? surface.scRT : undefined, depth: depthConsumer, clrColor: ctx.clearColor }, eng, ctx));
+            ctx._disposables.push(() => disposeRenderTarget(sharedDepth));
+        } else {
+            const rt = msaa
+                ? createRenderTarget({ lbl: "scene-color", format: surface.format, dFormat: "depth24plus-stencil8", samples: surface.msaaSamples, size: surface })
+                : surface.scRT;
+            const depth = msaa ? undefined : createRenderTarget({ lbl: "scene-depth", dFormat: "depth24plus-stencil8", samples: 1, size: surface });
+            _appendTask(fg, createRenderTask({ name: "scene", rt, rst: msaa ? surface.scRT : undefined, depth, clrColor: ctx.clearColor }, eng, ctx));
+        }
     }
     ctx._disposables.push(() => fg.dispose());
     return ctx;
+}
+
+/** Opaque meshes to mirror into the depth pre-pass: every scene renderable the
+ *  scene colour task buckets as opaque — i.e. NOT alpha-blended (`isTransparent`)
+ *  and NOT transmissive/refractive (`_transmissive`). This reads the SAME flags
+ *  the colour task buckets on (render-task.ts:355) off the already-built scene
+ *  renderables, so the opaque/transparent split can never drift from the colour
+ *  pass. Each opaque renderable's `.mesh` is returned (deduped).
+ *
+ *  Alpha-tested / discard materials: their source renderable is opaque
+ *  (`isTransparent` is false — they don't alpha-BLEND), so they are mirrored
+ *  here. The depth-only fragment correctly runs their discard only for
+ *  ShaderMaterial (whose no-color view keeps the discard via `depthOnlyFragment`,
+ *  shader-pipeline.ts) and Node materials (their no-color view re-emits the
+ *  graph). Standard/PBR no-color views drop the WHOLE fragment stage, so an
+ *  alpha-tested Standard/PBR mesh would pre-write depth for fully-cut-out
+ *  fragments — punching holes the colour pass then can't overdraw. We therefore
+ *  EXCLUDE Standard/PBR materials flagged alpha-tested; they fall through to the
+ *  colour pass with no early-Z benefit (correct, just unoptimised). PBR's
+ *  no-color view already strips PBR_HAS_ALPHA_BLEND, and Standard/PBR alpha-test
+ *  depth-only fragments are not wired, so this guard is the safe default. */
+function opaqueMeshesForPrepass(scene: SceneContext): Mesh[] {
+    const out: Mesh[] = [];
+    const seen = new Set<Mesh>();
+    for (const r of scene._renderables) {
+        if (r.isTransparent || r._transmissive) {
+            continue;
+        }
+        const mesh = r.mesh;
+        if (!mesh || seen.has(mesh)) {
+            continue;
+        }
+        const material = mesh.material;
+        if (!material) {
+            continue;
+        }
+        const family = material._buildGroup._materialFamily;
+        if ((family === "standard" || family === "pbr") && isAlphaTested(material)) {
+            continue;
+        }
+        seen.add(mesh);
+        out.push(mesh);
+    }
+    return out;
+}
+
+/** Whether a Standard/PBR material relies on per-fragment alpha discard
+ *  (alpha-test: `alphaCutOff > 0`, the field both families key
+ *  PBR_HAS_ALPHA_TEST / the discard branch off — standard-material.ts:80,
+ *  pbr-material.ts:161). Such materials must NOT be mirrored into the depth
+ *  pre-pass with a Standard/PBR no-color view, which drops the fragment stage
+ *  and would pre-write depth for cut-out fragments. */
+function isAlphaTested(material: Material): boolean {
+    const cutOff = (material as Material & { alphaCutOff?: number }).alphaCutOff;
+    return (cutOff ?? 0) > 0;
+}
+
+/** Re-queue the current opaque meshes onto the depth-prepass task. Runs each
+ *  record() (so resize / mesh-add / material-swap rebuilds re-sync), mirroring
+ *  how the shadow task re-derives its caster list per record (shadow-task.ts).
+ *  Returns the number of meshes queued. */
+function syncDepthPrepassMeshes(task: RenderTask, scene: SceneContext, views: Map<Material, MaterialView>): number {
+    // Discard any prior auto-mirrored renderables and re-queue from the live
+    // opaque list. `addMesh` pushes onto `_pendingMeshes`, resolved (and the
+    // list rebucketed) by the wrapped `record()` that runs right after.
+    task._renderables.length = 0;
+    task._autoFromScene = false;
+    let queued = 0;
+    for (const mesh of opaqueMeshesForPrepass(scene)) {
+        const material = mesh.material;
+        if (material) {
+            task.addMesh(mesh, { material: getNoColorView(material, views) });
+            queued++;
+        }
+    }
+    return queued;
 }
 
 /** Register a callback to run before each rendered frame. */

@@ -11,6 +11,12 @@ import { createRenderTask, type RenderTask } from "../frame-graph/render-task.js
 import { casterVersionSum, createShadowCamera, createShadowRenderTarget, updateShadowCameraBase, writeShadowUboFields } from "./shadow-base.js";
 import type { ShadowGenerator, ShadowTaskInternalState } from "./shadow-generator.js";
 import { packMat4IntoF32 } from "../math/pack-mat4-into-f32.js";
+import { getNoColorView, preloadNoColorViewDispatch } from "../material/no-color-view-dispatch.js";
+
+// Re-exported so the shadow generators (and CSM hooks) keep importing the
+// no-color machinery from this module. The implementation lives in the shared
+// `no-color-view-dispatch` module so the depth pre-pass can reuse it verbatim.
+export { getNoColorView };
 
 export interface PcfLightMatrix {
     /** @internal */
@@ -44,58 +50,8 @@ export interface PcfTaskState extends ShadowTaskInternalState {
     _scene: SceneContext;
 }
 
-type StandardNoColorFactory = typeof import("../material/standard/no-color-view.js").createStandardNoColorMaterialView;
-type PbrNoColorFactory = typeof import("../material/pbr/no-color-view.js").createPbrNoColorMaterialView;
-type NodeNoColorFactory = typeof import("../material/node/no-color-view.js").createNodeNoColorMaterialView;
-type ShaderNoColorFactory = typeof import("../material/shader/no-color-view.js").createShaderNoColorMaterialView;
-
-let createStandardNoColorMaterialView: StandardNoColorFactory;
-let createPbrNoColorMaterialView: PbrNoColorFactory;
-let createNodeNoColorMaterialView: NodeNoColorFactory;
-let createShaderNoColorMaterialView: ShaderNoColorFactory;
-
 export async function preloadPcfShadowTaskState(casterMeshes: readonly Mesh[]): Promise<void> {
-    const loads: Promise<void>[] = [];
-    let needsStandard = false;
-    let needsPbr = false;
-    let needsNode = false;
-    let needsShader = false;
-    for (const mesh of casterMeshes) {
-        const family = mesh.material?._buildGroup._materialFamily;
-        needsStandard ||= family === "standard";
-        needsPbr ||= family === "pbr";
-        needsNode ||= family === "node";
-        needsShader ||= family === "shader";
-    }
-    if (needsStandard && !createStandardNoColorMaterialView) {
-        loads.push(
-            import("../material/standard/no-color-view.js").then((module) => {
-                createStandardNoColorMaterialView = module.createStandardNoColorMaterialView;
-            })
-        );
-    }
-    if (needsPbr && !createPbrNoColorMaterialView) {
-        loads.push(
-            import("../material/pbr/no-color-view.js").then((module) => {
-                createPbrNoColorMaterialView = module.createPbrNoColorMaterialView;
-            })
-        );
-    }
-    if (needsNode && !createNodeNoColorMaterialView) {
-        loads.push(
-            import("../material/node/no-color-view.js").then((module) => {
-                createNodeNoColorMaterialView = module.createNodeNoColorMaterialView;
-            })
-        );
-    }
-    if (needsShader && !createShaderNoColorMaterialView) {
-        loads.push(
-            import("../material/shader/no-color-view.js").then((module) => {
-                createShaderNoColorMaterialView = module.createShaderNoColorMaterialView;
-            })
-        );
-    }
-    await Promise.all(loads);
+    await preloadNoColorViewDispatch(casterMeshes);
 }
 
 export function ensurePcfShadowTaskState(
@@ -199,26 +155,4 @@ function biasViewProjection(viewProj: Float32Array, bias: number): Float32Array 
         biased[z] = biased[z]! + b * biased[w]!;
     }
     return biased;
-}
-
-export function getNoColorView(material: Material, cache: Map<Material, MaterialView>): MaterialView {
-    const cached = cache.get(material);
-    if (cached) {
-        return cached;
-    }
-    const family = material._buildGroup._materialFamily;
-    let view: MaterialView;
-    if (family === "standard") {
-        view = createStandardNoColorMaterialView(material as Parameters<StandardNoColorFactory>[0]);
-    } else if (family === "pbr") {
-        view = createPbrNoColorMaterialView(material as Parameters<PbrNoColorFactory>[0]);
-    } else if (family === "node") {
-        view = createNodeNoColorMaterialView(material as Parameters<NodeNoColorFactory>[0]);
-    } else if (family === "shader") {
-        // Custom ShaderMaterial caster: the shader pipeline drops its fragment stage for the depth-only
-        // shadow target on its own, so the view just hands it a private system UBO (shadow-camera VP).
-        view = createShaderNoColorMaterialView(material as Parameters<typeof createShaderNoColorMaterialView>[0]);
-    }
-    cache.set(material, view!);
-    return view!;
 }
