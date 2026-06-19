@@ -59,6 +59,7 @@ Pages are ordered by how commonly Babylon Lite users reach for them — start wi
 | [37-resource-pool.md](37-resource-pool.md)                               | Resource Pool                   | GPU buffer/texture pooling                                                                     |
 | [38-bundle-size-tooling.md](38-bundle-size-tooling.md)                   | Bundle Size Tooling             | Per-scene bundle analysis, ceilings, treemaps                                                  |
 | [39-animation-parity-testing.md](39-animation-parity-testing.md)         | Animation Parity                | Animated scene test methodology                                                                |
+| [40-material-stencil.md](40-material-stencil.md)                         | Material Stencil                | Opt-in `enableMaterialStencil` per-material stencil mask/test on Standard/PBR/Shader, zero-impact hook |
 
 ---
 
