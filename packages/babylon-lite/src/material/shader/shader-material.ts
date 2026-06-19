@@ -7,8 +7,8 @@ import { shaderGroupBuilder } from "./shader-group-builder.js";
 
 /** Vertex attribute names a ShaderMaterial can bind. */
 export type ShaderAttributeName = "position" | "normal" | "uv" | "uv2" | "tangent" | "color";
-/** WGSL scalar/vector/matrix types supported for ShaderMaterial uniforms. */
-export type ShaderUniformType = "f32" | "u32" | "i32" | "vec2<f32>" | "vec3<f32>" | "vec4<f32>" | "mat4x4<f32>";
+/** WGSL scalar/vector/matrix/fixed-array types supported for ShaderMaterial uniforms. */
+export type ShaderUniformType = "f32" | "u32" | "i32" | "vec2<f32>" | "vec3<f32>" | "vec4<f32>" | "mat4x4<f32>" | `array<vec4<f32>, ${number}>`;
 /** Built-in uniform names automatically populated by the renderer each frame
  *  (transforms, camera position, screen size, alpha cutoff). */
 export type ShaderSystemUniformName = "world" | "view" | "projection" | "viewProjection" | "worldView" | "worldViewProjection" | "cameraPosition" | "screenSize" | "alphaCutoff";
@@ -317,7 +317,16 @@ function normalizeCustomUniform(decl: ShaderUniformDecl): ShaderUniformDecl {
 }
 
 function isUniformType(type: string): type is ShaderUniformType {
-    return type === "f32" || type === "u32" || type === "i32" || type === "vec2<f32>" || type === "vec3<f32>" || type === "vec4<f32>" || type === "mat4x4<f32>";
+    return (
+        type === "f32" ||
+        type === "u32" ||
+        type === "i32" ||
+        type === "vec2<f32>" ||
+        type === "vec3<f32>" ||
+        type === "vec4<f32>" ||
+        type === "mat4x4<f32>" ||
+        /^array<vec4<f32>,\s*\d+>$/.test(type)
+    );
 }
 
 function assertUniqueName(usedNames: Set<string>, kind: string, name: string): void {
@@ -341,6 +350,13 @@ function elementCount(type: ShaderUniformType): number {
             return 4;
         case "mat4x4<f32>":
             return 16;
+        default: {
+            const m = /^array<vec4<f32>,\s*(\d+)>$/.exec(type);
+            if (m) {
+                return Number(m[1]) * 4;
+            }
+            throw new Error(`ShaderMaterial: unsupported uniform type "${String(type)}".`);
+        }
     }
 }
 

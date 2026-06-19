@@ -13,6 +13,7 @@
  *   vec4<u32>    → align 16, size 16
  *   mat4x4<f32>  → align 16, size 64
  *   array<vec4<u32>, N> → align 16, size 16 × N
+ *   array<vec4<f32>, N> → align 16, size 16 × N
  * ```
  *
  * The total struct size is rounded up to a multiple of 16 bytes.
@@ -45,7 +46,7 @@ function typeInfo(type: WgslScalarType): TypeInfo {
     if (info) {
         return info;
     }
-    const m = /^array<vec4<u32>,\s*(\d+)>$/.exec(type);
+    const m = /^array<vec4<(?:u32|f32)>,\s*(\d+)>$/.exec(type);
     if (m) {
         return { align: 16, size: Number(m[1]) * 16 };
     }

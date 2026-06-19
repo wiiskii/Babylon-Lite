@@ -89,6 +89,13 @@ describe("computeUboLayout", () => {
         expect(spec._totalBytes).toBe(112);
     });
 
+    it("lays out array<vec4<f32>, N> at align 16, size 16*N, emitting the type verbatim", () => {
+        const spec = computeUboLayout([{ _name: "table", _type: "array<vec4<f32>, 8>" }]);
+        expect(spec._offsets.get("table")).toBe(0);
+        expect(spec._totalBytes).toBe(128); // 8 * 16
+        expect(spec._structBody).toBe("table: array<vec4<f32>, 8>,");
+    });
+
     it("generates correct WGSL struct body", () => {
         const fields: UboField[] = [
             { _name: "world", _type: "mat4x4<f32>" },

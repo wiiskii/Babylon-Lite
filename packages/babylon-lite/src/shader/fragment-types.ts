@@ -12,7 +12,17 @@
 // ── WGSL types ──────────────────────────────────────────────────
 
 /** Scalar, vector, matrix, and fixed-array WGSL types for UBO fields */
-export type WgslScalarType = "f32" | "u32" | "i32" | "vec2<f32>" | "vec3<f32>" | "vec4<f32>" | "vec4<u32>" | "mat4x4<f32>" | `array<vec4<u32>, ${number}>`;
+export type WgslScalarType =
+    | "f32"
+    | "u32"
+    | "i32"
+    | "vec2<f32>"
+    | "vec3<f32>"
+    | "vec4<f32>"
+    | "vec4<u32>"
+    | "mat4x4<f32>"
+    | `array<vec4<u32>, ${number}>`
+    | `array<vec4<f32>, ${number}>`;
 
 // ── Vertex attributes ───────────────────────────────────────────
 

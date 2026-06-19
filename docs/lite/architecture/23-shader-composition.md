@@ -24,8 +24,18 @@ const STAGE_FRAGMENT = 0x2;   // GPUShaderStage.FRAGMENT
 ### Types — `fragment-types.ts`
 
 ```typescript
-// ── WGSL scalar/vector types ──
-export type WgslScalarType = "f32" | "u32" | "i32" | "vec2<f32>" | "vec3<f32>" | "vec4<f32>" | "mat4x4<f32>";
+// ── WGSL scalar/vector/fixed-array types ──
+export type WgslScalarType =
+    | "f32"
+    | "u32"
+    | "i32"
+    | "vec2<f32>"
+    | "vec3<f32>"
+    | "vec4<f32>"
+    | "vec4<u32>"
+    | "mat4x4<f32>"
+    | `array<vec4<u32>, ${number}>`
+    | `array<vec4<f32>, ${number}>`;
 
 // ── Vertex Attributes ──
 export interface VertexAttribute {
@@ -247,6 +257,7 @@ Each binding gets:
 | `vec4<u32>` | 16 | 16 |
 | `mat4x4<f32>` | 16 | 64 |
 | `array<vec4<u32>, N>` | 16 | 16 × N |
+| `array<vec4<f32>, N>` | 16 | 16 × N |
 
 Array type parsing accepts optional whitespace after the comma, so both `array<vec4<u32>, 4>` and `array<vec4<u32>,4>` are valid field type strings. This matters for production bundles because inline WGSL minification may remove spaces.
 

@@ -117,7 +117,7 @@ Implementation notes (bundle discipline):
 ### Uniform declarations
 
 ```typescript
-export type ShaderUniformType = "f32" | "u32" | "i32" | "vec2<f32>" | "vec3<f32>" | "vec4<f32>" | "mat4x4<f32>";
+export type ShaderUniformType = "f32" | "u32" | "i32" | "vec2<f32>" | "vec3<f32>" | "vec4<f32>" | "mat4x4<f32>" | `array<vec4<f32>, ${number}>`;
 
 export type ShaderSystemUniformName =
     | "world"
